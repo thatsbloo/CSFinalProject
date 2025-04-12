@@ -15,6 +15,9 @@ namespace YoavProject
         public Player()
         {
             InitializeComponent();
+
+            SetStyle(ControlStyles.Selectable, false);
+
         }
 
         private void Player_Load(object sender, EventArgs e)
