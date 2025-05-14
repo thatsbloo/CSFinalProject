@@ -59,8 +59,14 @@ namespace YoavProject
 
             for (int i = 0; i < 7; i++)
             {
-                interactables.Add(new Workstation(new PointF(cols-i, rows-1)));
+                Workstation a = new Workstation(new PointF(cols - i, rows - 1));
+                if (i % 3 == 0)
+                    a.type = Workstation.stationType.pasta;
+                interactables.Add(a);
+                
             }
+
+            
 
             tileSize = Math.Min(this.Width / cols, this.Height / rows);
         }

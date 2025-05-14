@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -80,7 +81,7 @@ namespace YoavProject
 
             if (Game.isDebugMode)
             {
-                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y-screenSize.Height, screenSize.Width, screenSize.Height);
+                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
             }
         }
     }
@@ -93,7 +94,10 @@ namespace YoavProject
         }
     }
 
-    public abstract class InteractableObject : GameObject { }
+    public abstract class InteractableObject : GameObject
+    {
+
+    }
 
     public class Table : InteractableObject
     {
@@ -124,6 +128,9 @@ namespace YoavProject
 
     class Workstation : InteractableObject
     {
+        public enum stationType { empty, pasta, pizza, burger, coffee, sushiMAYBE }
+
+        public stationType type { get; set; }
         public Workstation() : this(new PointF(0f, 0f)) { }
 
         public Workstation(PointF position)
@@ -141,6 +148,18 @@ namespace YoavProject
 
             g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 160, 32, 40), GraphicsUnit.Pixel);
             //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+
+            switch(type)
+            {
+                case stationType.pasta:
+                    g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(160, 160, 32, 40), GraphicsUnit.Pixel);
+                    break;
+                case stationType.empty:
+                    break;
+                default:
+                    break;
+                
+            }
 
             if (Game.isDebugMode)
             {
