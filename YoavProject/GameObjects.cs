@@ -1,0 +1,151 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace YoavProject
+{
+    public abstract class GameObject
+    {
+        public PointF position { get; set; } //in tiles
+        public SizeF size { get; set; } //in tiles
+        public SizeF hitboxSize { get; set; } //in tiles
+
+
+        public SizeF calcSizeOnScreen()
+        {
+            int tileSize = GameBoard.tileSize;
+            return new SizeF(tileSize * size.Width, tileSize * size.Height);
+        }
+
+        public SizeF calcHitboxSizeOnScreen()
+        {
+            int tileSize = GameBoard.tileSize;
+            return new SizeF(tileSize * size.Width, tileSize * size.Height);
+        }
+
+        public PointF calcPositionOnScreen(PointF position)
+        {
+            int tileSize = GameBoard.tileSize;
+            return new PointF(tileSize * position.X, tileSize * position.Y);
+        }
+
+
+        public RectangleF getCollisionArea()
+        {
+            var screenPos = calcPositionOnScreen(this.position);
+            var screenSize = calcHitboxSizeOnScreen();
+
+            return new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+        }
+
+
+
+        public (float yUp, float yDown, float xLeft, float xRight) getBorders()
+        {
+            return (position.Y - size.Height, position.Y, position.X, position.X + size.Width);
+        }
+
+        public abstract void draw(Graphics g);
+
+    }
+    public class Player : GameObject
+    {
+
+        public Player()
+        {
+            this.size = new SizeF(0.6f, 0.9f);
+            this.hitboxSize = new SizeF(0.8f, 1);
+
+        }
+        public override void draw(Graphics g)
+        {
+
+            var screenPos = calcPositionOnScreen(this.position);
+            var screenSize = calcSizeOnScreen();
+
+            //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
+
+
+            g.FillRectangle(Brushes.Blue, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+
+            g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
+
+            // g.FillEllipse(Brushes.Green, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, 5, 5));
+
+            if (Game.isDebugMode)
+            {
+                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y-screenSize.Height, screenSize.Width, screenSize.Height);
+            }
+        }
+    }
+
+    class Costumer : GameObject
+    {
+        public override void draw(Graphics g)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public abstract class InteractableObject : GameObject { }
+
+    public class Table : InteractableObject
+    {
+        public Table() : this(new PointF(0f, 0f)) { }
+
+        public Table(PointF position)
+        {
+            this.size = new SizeF(3, 2);
+            this.hitboxSize = new SizeF(3, 2);
+            this.position = position;
+        }
+        public override void draw(Graphics g)
+        {
+            var screenPos = calcPositionOnScreen(this.position);
+            var screenSize = calcSizeOnScreen();
+
+            //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
+
+
+            g.FillRectangle(Brushes.Red, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+
+            if (Game.isDebugMode)
+            {
+                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+            }
+        }
+    }
+
+    class Workstation : InteractableObject
+    {
+        public Workstation() : this(new PointF(0f, 0f)) { }
+
+        public Workstation(PointF position)
+        {
+            this.size = new SizeF(1, 1);
+            this.hitboxSize = new SizeF(1, 1);
+            this.position = position;
+        }
+        public override void draw(Graphics g)
+        {
+            var screenPos = calcPositionOnScreen(this.position);
+            var screenSize = calcSizeOnScreen();
+
+            //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
+
+            g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 160, 32, 32), GraphicsUnit.Pixel);
+            //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+
+            if (Game.isDebugMode)
+            {
+                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+            }
+        }
+    }
+}
+

@@ -16,12 +16,14 @@ namespace YoavProject
     {
 
         private List<Player> online_players;
-        private Player self;
+        //private Player self;
         private GameBoard board;
 
         private Image backgroundSpriteSheet;
 
         private HashSet<Keys> pressedKeys;
+
+        public static bool isDebugMode { get; private set; }
 
         public Game()
         {
@@ -29,9 +31,12 @@ namespace YoavProject
 
 
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
-            this.ClientSize = new Size(64*11, 64*8);
+            this.ClientSize = new Size(64*11, 64*9);
+            this.DoubleBuffered = true;
 
-            self = new Player();
+            isDebugMode = false;
+
+            //self = new Player();
             online_players = new List<Player>();
             board = new GameBoard();
 
@@ -42,8 +47,8 @@ namespace YoavProject
         private void Game_Load(object sender, EventArgs e)
         {
             board.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
-            //Controls.Add(board);
-            Controls.Add(self);
+            Controls.Add(board);
+            //Controls.Add(self);
 
 
         }
@@ -55,30 +60,32 @@ namespace YoavProject
 
         private void GameLoop_Tick(object sender, EventArgs e)
         {
-            this.Focus();
-            #region proccess keys
-            (int, int) direction = (0, 0);
-            if (pressedKeys.Contains(Keys.W))
-            {
-                direction.Item2 += -1;
-            }
-            else if (pressedKeys.Contains(Keys.A))
-            {
-                direction.Item1 += -1;
-            }
-            else if (pressedKeys.Contains(Keys.S))
-            {
-                direction.Item2 += 1;
-            }
-            else if (pressedKeys.Contains(Keys.D))
-            {
-                direction.Item1 += 1;
-            }
-            move_player(direction);
-            #endregion
-
-
             
+            board.Focus();
+            board.Update();
+            //#region proccess keys
+            //(int, int) direction = (0, 0);
+            //if (pressedKeys.Contains(Keys.W))
+            //{
+            //    direction.Item2 += -1;
+            //}
+            //else if (pressedKeys.Contains(Keys.A))
+            //{
+            //    direction.Item1 += -1;
+            //}
+            //else if (pressedKeys.Contains(Keys.S))
+            //{
+            //    direction.Item2 += 1;
+            //}
+            //else if (pressedKeys.Contains(Keys.D))
+            //{
+            //    direction.Item1 += 1;
+            //}
+            //move_player(direction);
+            //#endregion
+
+
+           
             //Console.WriteLine(pressedKeys);
         }
 
@@ -86,19 +93,24 @@ namespace YoavProject
         {
             Console.WriteLine(direction);
             int move = board.getTileSize() / 8;
-            self.Left = direction.Item1 * move;
-            self.Top = direction.Item2 * move;
+            var pos = board.player.position;
+            pos.X += direction.Item1 * move;
+            pos.Y += direction.Item2 * move;
+            board.player.position = pos;
+
+            //self.Top += direction.Item2 * move;
+            //Console.WriteLine(self.Top + " " + self.Left);
         }
 
-        private void Game_KeyDown(object sender, KeyEventArgs e)
-        {
-            //Console.WriteLine(e.KeyCode);
-            pressedKeys.Add(e.KeyCode);
-        }
+        //private void Game_KeyDown(object sender, KeyEventArgs e)
+        //{
+        //    //Console.WriteLine(e.KeyCode);
+        //    pressedKeys.Add(e.KeyCode);
+        //}
 
-        private void Game_KeyUp(object sender, KeyEventArgs e)
-        {
-            pressedKeys.Remove(e.KeyCode);
-        }
+        //private void Game_KeyUp(object sender, KeyEventArgs e)
+        //{
+        //    pressedKeys.Remove(e.KeyCode);
+        //}
     }
 }

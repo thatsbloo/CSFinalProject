@@ -40,14 +40,13 @@
             // 
             // Game
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(533, 300);
+            this.ClientSize = new System.Drawing.Size(800, 462);
+            this.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.Name = "Game";
             this.Text = "Game";
             this.Load += new System.EventHandler(this.Game_Load);
-            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.Game_KeyDown);
-            this.KeyUp += new System.Windows.Forms.KeyEventHandler(this.Game_KeyUp);
             this.Resize += new System.EventHandler(this.Game_Resize);
             this.ResumeLayout(false);
 
