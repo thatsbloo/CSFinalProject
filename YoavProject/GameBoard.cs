@@ -144,7 +144,7 @@ namespace YoavProject
                 RectangleF playerRect = new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
                 RectangleF objRect = obj.getCollisionArea();
 
-                if (playerRect.Right >= objRect.Left && playerRect.Left <= objRect.Right && playerRect.Bottom >= objRect.Top && playerRect.Top <= (objRect.Bottom-(playerRect.Height/1.5f)))
+                if (playerRect.Right >= objRect.Left && playerRect.Left <= objRect.Right && playerRect.Bottom >= objRect.Top && playerRect.Top <= objRect.Bottom)
                 {
                     Console.WriteLine("amor de mis amores");
 
@@ -152,7 +152,7 @@ namespace YoavProject
                     float overlapLeft = playerRect.Right - objRect.Left;
                     float overlapRight = objRect.Right - playerRect.Left;
                     float overlapTop = playerRect.Bottom - objRect.Top;
-                    float overlapBottom = objRect.Bottom - (playerRect.Height / 1.5f) - playerRect.Top;
+                    float overlapBottom = objRect.Bottom - playerRect.Top;
 
                     // Find the smallest overlap
                     float minHorizontal = Math.Min(overlapLeft, overlapRight);

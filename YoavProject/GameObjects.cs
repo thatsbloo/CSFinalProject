@@ -25,7 +25,7 @@ namespace YoavProject
         public SizeF calcHitboxSizeOnScreen()
         {
             int tileSize = GameBoard.tileSize;
-            return new SizeF(tileSize * size.Width, tileSize * size.Height);
+            return new SizeF(tileSize * hitboxSize.Width, tileSize * hitboxSize.Height);
         }
 
         public PointF calcPositionOnScreen(PointF position)
@@ -59,7 +59,7 @@ namespace YoavProject
         public Player()
         {
             this.size = new SizeF(0.6f, 0.9f);
-            this.hitboxSize = new SizeF(0.8f, 1);
+            this.hitboxSize = new SizeF(0.6f, 0.225f);
 
         }
         public override void draw(Graphics g)
@@ -73,7 +73,7 @@ namespace YoavProject
 
             g.FillRectangle(Brushes.Blue, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
 
-            g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
+            //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
 
             // g.FillEllipse(Brushes.Green, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, 5, 5));
 
@@ -127,8 +127,8 @@ namespace YoavProject
 
         public Workstation(PointF position)
         {
-            this.size = new SizeF(1, 1);
-            this.hitboxSize = new SizeF(1, 1);
+            this.size = new SizeF(1, 1.25f);
+            this.hitboxSize = size;
             this.position = position;
         }
         public override void draw(Graphics g)
