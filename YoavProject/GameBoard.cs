@@ -26,7 +26,9 @@ namespace YoavProject
         private List<InteractableObject> interactables;
         private List<Costumer> costumers;
 
-        private float playerSpeed = 3f; //in tiles
+        private GameObject topWall;
+
+        private float playerSpeed = 3.5f; //in tiles
 
 
 
@@ -118,7 +120,7 @@ namespace YoavProject
                 if (pos.Y < yUp) pos.Y = yUp;
                 if (pos.Y > yDown) pos.Y = yDown;
                 if (pos.X < xLeft) pos.X = xLeft;
-                if (pos.X > xRight) pos.X = xRight;
+                if (pos.X+player.size.Width > xRight) pos.X = xRight- player.size.Width;
             }
 
             //void handle_objects(InteractableObject obj)
@@ -229,7 +231,7 @@ namespace YoavProject
             }
             #endregion
 
-            handle_borders(wallHeight, rows, 0, cols-1);
+            handle_borders(wallHeight, rows, 0, cols);
             handle_interactables();
 
             

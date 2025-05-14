@@ -11,6 +11,7 @@ namespace YoavProject
 {
     public abstract class GameObject
     {
+
         public PointF position { get; set; } //in tiles
         public SizeF size { get; set; } //in tiles
         public SizeF hitboxSize { get; set; } //in tiles
@@ -138,7 +139,7 @@ namespace YoavProject
 
             //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
-            g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 160, 32, 32), GraphicsUnit.Pixel);
+            g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 160, 32, 40), GraphicsUnit.Pixel);
             //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
 
             if (Game.isDebugMode)
