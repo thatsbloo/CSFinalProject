@@ -1,6 +1,6 @@
 ﻿namespace YoavProject
 {
-    partial class Game
+    partial class Server
     {
         /// <summary>
         /// Required designer variable.
@@ -38,16 +38,16 @@
             this.GameLoop.Interval = 33;
             this.GameLoop.Tick += new System.EventHandler(this.GameLoop_Tick);
             // 
-            // Game
+            // Server
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(533, 300);
-            this.Name = "Game";
-            this.Text = "Game";
-            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Game_FormClosing);
-            this.Load += new System.EventHandler(this.Game_Load);
-            this.Resize += new System.EventHandler(this.Game_Resize);
+            this.ClientSize = new System.Drawing.Size(533, 292);
+            this.Margin = new System.Windows.Forms.Padding(2, 2, 2, 2);
+            this.Name = "Server";
+            this.Text = "Server";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Server_FormClosing);
+            this.Load += new System.EventHandler(this.Server_Load);
             this.ResumeLayout(false);
 
         }

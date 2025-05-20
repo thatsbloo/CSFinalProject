@@ -120,7 +120,7 @@ namespace YoavProject
             pos.X += dirx * move;
             pos.Y += diry * move;
 
-            #region inline
+            #region collision handling
             void handle_borders(float yUp, float yDown, float xLeft, float xRight)
             {
                 if (pos.Y < yUp) pos.Y = yUp;
@@ -129,21 +129,7 @@ namespace YoavProject
                 if (pos.X+player.size.Width > xRight) pos.X = xRight- player.size.Width;
             }
 
-            //void handle_objects(InteractableObject obj)
-            //{
-            //    if (obj.getCollisionArea().IntersectsWith(player.getCollisionArea()))
-            //    {
-            //        Console.WriteLine(obj.getCollisionArea().IntersectsWith(player.getCollisionArea()));
-            //        (float, float, float, float) borders = obj.getBorders();
-            //        float fixedY = (Math.Abs(pos.Y - borders.Item1) < Math.Abs(pos.Y - borders.Item2)) ? borders.Item1 : borders.Item2  ;
-            //        float fixedX = (Math.Abs(pos.X - borders.Item3) < Math.Abs(pos.X - borders.Item4)) ? borders.Item3 : borders.Item4;
-
-            //        pos.Y = fixedY;
-            //        pos.X = fixedX;
-
-            //    }
-
-            //}
+          
 
             void handle_objects(InteractableObject obj)
             {
@@ -186,42 +172,6 @@ namespace YoavProject
                 }
             }
 
-
-            //void handle_objects(InteractableObject obj)
-            //{
-            //    RectangleF playerRect = player.getCollisionArea();
-            //    RectangleF otherRect = obj.getCollisionArea();
-
-            //    if (!playerRect.IntersectsWith(otherRect))
-            //        return;
-            //    Console.WriteLine("a");
-
-            //    RectangleF intersection = RectangleF.Intersect(playerRect, otherRect);
-
-            //    float tileSize = GameBoard.tileSize;
-
-            //    // Move along the axis of least penetration
-            //    if (intersection.Width < intersection.Height)
-            //    {
-            //        Console.WriteLine("b");
-            //        // Horizontal collision
-            //        if (playerRect.X < otherRect.X)
-            //            player.position = new PointF(player.position.X - intersection.Width / tileSize, player.position.Y);
-            //        else
-            //            player.position = new PointF(player.position.X + intersection.Width / tileSize, player.position.Y);
-            //    }
-            //    else
-            //    {
-            //        Console.WriteLine("c");
-            //        // Vertical collision
-            //        if (playerRect.Y < otherRect.Y)
-            //            player.position = new PointF(player.position.X, player.position.Y - intersection.Height / tileSize);
-            //        else
-            //            player.position = new PointF(player.position.X, player.position.Y + intersection.Height / tileSize);
-            //    }
-
-            //}
-
             void handle_interactables()
             {
                 foreach (InteractableObject obj in interactables)
@@ -240,11 +190,10 @@ namespace YoavProject
             handle_borders(wallHeight, rows, 0, cols);
             handle_interactables();
 
-            
+            byte[] messageToSend = UDP.createByteMessage(Data.Position, pos.X, pos.Y);
+            UDP.sendToServer(messageToSend);
             player.position = pos;
         }
-
-        
 
 
         protected override void OnPaint(PaintEventArgs e)

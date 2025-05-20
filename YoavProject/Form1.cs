@@ -16,5 +16,21 @@ namespace YoavProject
         {
             InitializeComponent();
         }
+
+        private void ServerButton_Click(object sender, EventArgs e)
+        {
+            if (UDP.serverDoesntExist())
+            {
+                DialogResult = DialogResult.Yes;
+            } else
+            {
+                MessageBox.Show("Server exists already >:(");
+            }
+        }
+
+        private void client_Click(object sender, EventArgs e)
+        {
+            DialogResult = DialogResult.No;
+        }
     }
 }

@@ -52,7 +52,16 @@ namespace YoavProject
             return (position.Y - size.Height, position.Y, position.X, position.X + size.Width);
         }
 
-        public abstract void draw(Graphics g);
+        public virtual void draw(Graphics g)
+        {
+            var screenPos = calcPositionOnScreen(this.position);
+            var screenSize = calcHitboxSizeOnScreen();
+
+            if (Game.isDebugMode)
+            {
+                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+            }
+        }
 
     }
     public class Player : GameObject
@@ -66,7 +75,7 @@ namespace YoavProject
         }
         public override void draw(Graphics g)
         {
-
+            
             var screenPos = calcPositionOnScreen(this.position);
             var screenSize = calcSizeOnScreen();
 
@@ -78,51 +87,58 @@ namespace YoavProject
             //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
 
             // g.FillEllipse(Brushes.Green, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, 5, 5));
-
-            if (Game.isDebugMode)
-            {
-                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
-            }
+            base.draw(g);
         }
     }
 
-    class Costumer : GameObject
-    {
-        public override void draw(Graphics g)
-        {
-            throw new NotImplementedException();
-        }
-    }
+    
 
     public abstract class InteractableObject : GameObject
     {
 
     }
 
+    class Costumer : InteractableObject 
+    {
+        public enum state { WalkingToTable, Thinking, Ordering, Waiting, Eating, WalkingAway }
+
+        
+        public override void draw(Graphics g)
+        {
+            this.size = new SizeF(0.6f, 0.9f);
+            this.hitboxSize = new SizeF(0, 0);
+        }
+
+
+    }
+
     public class Table : InteractableObject
     {
+        public int chairs;
+        public int freeChairs;
         public Table() : this(new PointF(0f, 0f)) { }
 
-        public Table(PointF position)
+        public Table(PointF position, int chairs = 2)
         {
             this.size = new SizeF(3, 2);
             this.hitboxSize = new SizeF(3, 2);
             this.position = position;
+            this.chairs = chairs;
+            this.freeChairs = chairs;
         }
         public override void draw(Graphics g)
         {
+            
             var screenPos = calcPositionOnScreen(this.position);
             var screenSize = calcSizeOnScreen();
 
             //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
 
-            g.FillRectangle(Brushes.Red, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+            g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
+            g.DrawString(freeChairs + "/" + chairs + " free", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
 
-            if (Game.isDebugMode)
-            {
-                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
-            }
+            base.draw(g);
         }
     }
 
@@ -141,6 +157,8 @@ namespace YoavProject
         }
         public override void draw(Graphics g)
         {
+            
+
             var screenPos = calcPositionOnScreen(this.position);
             var screenSize = calcSizeOnScreen();
 
@@ -161,10 +179,7 @@ namespace YoavProject
                 
             }
 
-            if (Game.isDebugMode)
-            {
-                g.DrawRectangle(Pens.Gold, screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
-            }
+            base.draw(g);
         }
     }
 }
