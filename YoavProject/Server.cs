@@ -40,7 +40,8 @@ namespace YoavProject
             listener.Start();
 
             UDP.denyOthers();
-            await acceptClientsAsync();
+            _ = Task.Run(acceptClientsAsync);
+            _ = Task.Run(handleClientUdpAsync);
         }
 
         private async Task acceptClientsAsync()
@@ -57,9 +58,13 @@ namespace YoavProject
                     {
                         allClients.Add(client);
                         activeClientsUsingID.Add(clientId, client);
+                        playersUsingID.Add(clientId, new Player());
                     }
 
                     Console.WriteLine($"Client connected with ID {clientId}");
+                    NetworkStream stream = client.GetStream();
+                    byte byteId = (byte)clientId;
+                    await stream.WriteAsync(new byte[] { byteId }, 0, 1);
 
                 }
                 catch (Exception e)
@@ -70,15 +75,72 @@ namespace YoavProject
             }
         }
 
-        private async Task handleClientUdpAsync(IPEndPoint endpoint, int id)
+        private async Task handleClientUdpAsync()
         {
+            Console.WriteLine("hello??");
+            UdpClient receiver = new UdpClient();
+            receiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+            IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, UDP.regularCommunication);
+            receiver.Client.Bind(endpoint);
+
+            void process_data(UdpReceiveResult res)
+            {
+                byte[] data = res.Buffer;
+                if (data.Length != 10)
+                {
+                    Console.WriteLine("Invalid Packet Size");
+                    return;
+                }
+
+                // message type
+                byte messageType = data[0];
+
+                int clientId = (int)data[1];
+
+                if (!BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(data, 2, 4);
+                    Array.Reverse(data, 6, 4);
+                }
+
+                float x = BitConverter.ToSingle(data, 2);
+                float y = BitConverter.ToSingle(data, 6);
+                PointF point = new PointF(x, y);
+
+                Console.WriteLine($"Received Type {messageType} | x: {x}, y: {y} from id: {clientId}");
+
+                lock (clientsLock)
+                {
+                    if (playersUsingID.TryGetValue(clientId, out Player player))
+                    {
+                        player.position = point;
+                    }
+                    else
+                    {
+                        // Optional: handle case where player isn't found
+                        Console.WriteLine($"Player with ID {clientId} not found.");
+                    }
+                }
+
+            }
+
+
             while (serverRunning)
             {
-                UdpClient receiver = new UdpClient();
-                receiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                try
+                {
+                    UdpReceiveResult result = await receiver.ReceiveAsync();
+                    process_data(result);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("UDP Receive error: " + ex.Message);
+                }
 
-                receiver.Client.Bind(endpoint);
             }
+
+            receiver.Close();
         }
 
         private async void GameLoop_Tick(object sender, EventArgs e)

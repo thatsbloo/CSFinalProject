@@ -119,16 +119,17 @@ namespace YoavProject
 
         public static byte[] createByteMessage(Data type, float f1, float f2)
         {
-            byte[] bytes = new byte[1 + 4 + 4];
+            byte[] bytes = new byte[1 + 1 + 4 + 4];
             bytes[0] = (byte)type;
+            bytes[1] = (byte)Game.clientId;
 
-            Buffer.BlockCopy(BitConverter.GetBytes(f1), 0, bytes, 1, 4);
-            Buffer.BlockCopy(BitConverter.GetBytes(f2), 0, bytes, 5, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(f1), 0, bytes, 2, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(f2), 0, bytes, 6, 4);
 
             if (!BitConverter.IsLittleEndian)
             {
-                Array.Reverse(bytes, 1, 4);
-                Array.Reverse(bytes, 5, 4);
+                Array.Reverse(bytes, 2, 4);
+                Array.Reverse(bytes, 6, 4);
             }
 
             return bytes;

@@ -46,14 +46,21 @@ namespace YoavProject
         }
 
         private TcpClient tcpClient;
+        public static int clientId { get; private set; }
 
-        private void Game_Load(object sender, EventArgs e)
+        private async void Game_Load(object sender, EventArgs e)
         {
             board.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
             Controls.Add(board);
             //Controls.Add(self);
             UDP.serverDoesntExist();
             tcpClient = new TcpClient(UDP.serverAddress.ToString(), UDP.regularCommunication);
+            NetworkStream stream = tcpClient.GetStream();
+
+            // read byte for client id
+            byte[] buffer = new byte[1];
+            await stream.ReadAsync(buffer, 0, 1);
+            clientId = (int)buffer[0];
 
 
 
