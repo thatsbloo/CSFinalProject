@@ -22,6 +22,7 @@ namespace YoavProject
 
         public static List<TcpClient> allClients = new List<TcpClient>();
         public static Dictionary<int, TcpClient> activeClientsUsingID = new Dictionary<int, TcpClient>();
+        public static Dictionary<int, IPEndPoint> udpEndpointsUsingID = new Dictionary<int, IPEndPoint>();
 
         public static Dictionary<int, Player> playersUsingID = new Dictionary<int, Player>();
 
@@ -35,7 +36,7 @@ namespace YoavProject
         private async void Server_Load(object sender, EventArgs e)
         {
             serverRunning = true;
-            listener = new TcpListener(IPAddress.Any, UDP.regularCommunication);
+            listener = new TcpListener(IPAddress.Any, UDP.regularCommunicationToServer);
             listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             listener.Start();
 
@@ -81,10 +82,10 @@ namespace YoavProject
             UdpClient receiver = new UdpClient();
             receiver.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
-            IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, UDP.regularCommunication);
+            IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, UDP.regularCommunicationToServer);
             receiver.Client.Bind(endpoint);
 
-            void process_data(UdpReceiveResult res)
+            async void process_data(UdpReceiveResult res)
             {
                 byte[] data = res.Buffer;
                 if (data.Length != 10)
@@ -112,6 +113,7 @@ namespace YoavProject
 
                 lock (clientsLock)
                 {
+                    udpEndpointsUsingID[clientId] = res.RemoteEndPoint;
                     if (playersUsingID.TryGetValue(clientId, out Player player))
                     {
                         player.position = point;
@@ -120,6 +122,22 @@ namespace YoavProject
                     {
                         // Optional: handle case where player isn't found
                         Console.WriteLine($"Player with ID {clientId} not found.");
+                    }
+                }
+
+                foreach (var pair in udpEndpointsUsingID)
+                {
+                    int otherId = pair.Key;
+                    IPEndPoint ipEndPoint = new IPEndPoint(pair.Value.Address, UDP.regularCommunicationToClients);
+                    if (otherId == clientId) continue;
+
+                    try
+                    {
+                        await receiver.SendAsync(data, data.Length, ipEndPoint);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Failed to send to client {otherId}: {e.Message}");
                     }
                 }
 
@@ -145,7 +163,14 @@ namespace YoavProject
 
         private async void GameLoop_Tick(object sender, EventArgs e)
         {
+            UdpClient broadcaster = new UdpClient();
+            broadcaster.EnableBroadcast = true;
 
+            IPEndPoint allEndPoints = new IPEndPoint(IPAddress.Broadcast, UDP.regularCommunicationToClients);
+            //byte[] byteServerExists;
+
+            //broadcaster.Send(byteServerExists, byteServerExists.Length, allEndPoints);
+            //broadcaster.Client.ReceiveTimeout = 500;
         }
 
         private void Server_FormClosing(object sender, FormClosingEventArgs e)

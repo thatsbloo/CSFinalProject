@@ -11,13 +11,14 @@ using System.Windows.Forms;
 namespace YoavProject
 {
     enum Messages { ServerExists, DenyServerReq, ConnectingReq }
-    enum Data : byte { Position = 1 }
+    enum Data : byte { Position = 1, StateSync = 2 }
     
     
     static class UDP
     {
         public static int udpBroadcastPort = 1947;
-        public static int regularCommunication = 1948;
+        public static int regularCommunicationToServer = 1948;
+        public static int regularCommunicationToClients = 1949;
 
         public static IPAddress serverAddress;
 
@@ -110,7 +111,7 @@ namespace YoavProject
 
             UdpClient sender = new UdpClient();
 
-            IPEndPoint serverEndpoint = new IPEndPoint(serverAddress, regularCommunication);
+            IPEndPoint serverEndpoint = new IPEndPoint(serverAddress, regularCommunicationToServer);
 
             sender.Send(message, message.Length, serverEndpoint);
             sender.Client.ReceiveTimeout = 500;
@@ -119,9 +120,14 @@ namespace YoavProject
 
         public static byte[] createByteMessage(Data type, float f1, float f2)
         {
+           return createByteMessage(type, Game.clientId, f1, f2);
+        }
+
+        public static byte[] createByteMessage(Data type, int id, float f1, float f2)
+        {
             byte[] bytes = new byte[1 + 1 + 4 + 4];
             bytes[0] = (byte)type;
-            bytes[1] = (byte)Game.clientId;
+            bytes[1] = (byte)id;
 
             Buffer.BlockCopy(BitConverter.GetBytes(f1), 0, bytes, 2, 4);
             Buffer.BlockCopy(BitConverter.GetBytes(f2), 0, bytes, 6, 4);

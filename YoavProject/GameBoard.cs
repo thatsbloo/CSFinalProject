@@ -14,8 +14,8 @@ namespace YoavProject
     public partial class GameBoard : UserControl
     {
         public static Image backgroundSpriteSheet {  get; private set; }
-        private int rows;
-        private int cols;
+        public int rows {  get; private set; }
+        public int cols { get; private set; }
         private int wallHeight;
         public Player player { get; private set; }
 
@@ -25,6 +25,8 @@ namespace YoavProject
 
         private List<InteractableObject> interactables;
         private List<Costumer> costumers;
+
+        public static Dictionary<int, Player> onlinePlayers;
 
         private GameObject topWall;
 
@@ -43,7 +45,7 @@ namespace YoavProject
             backgroundSpriteSheet = Image.FromFile("C:\\Users\\yoavt\\Documents\\YehudaProjects\\YoavProject\\YoavProject\\Assets\\Background.png");
 
             rows = 9;
-            cols = 11; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))
+            cols = 12; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))
             wallHeight = 2;
 
             player = new Player();
@@ -54,6 +56,8 @@ namespace YoavProject
 
             interactables = new List<InteractableObject>();
             costumers = new List<Costumer>();
+
+            onlinePlayers = new Dictionary<int, Player>();
 
             interactables.Add(new Table(new PointF(1, 5)));
 
@@ -217,6 +221,13 @@ namespace YoavProject
 
             //player.position = new PointF((float)(rnd.NextDouble()*rows), (float)(rnd.NextDouble() * cols));
             //Console.WriteLine(player.position);
+            if (Game.connected)
+            {
+                foreach (var pair  in onlinePlayers)
+                {
+                    pair.Value.draw(e.Graphics);
+                }
+            }
             player.draw(e.Graphics);
 
             
