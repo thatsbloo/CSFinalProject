@@ -55,7 +55,6 @@ namespace YoavProject
 
                     int clientId = Interlocked.Increment(ref totalClients);
 
-                    Dictionary<int, Player> currPlayers = new Dictionary<int, Player>();
                     List<byte> stateSyncList = new List<byte>();
                     lock (clientsLock)
                     {
@@ -104,7 +103,7 @@ namespace YoavProject
             IPEndPoint endpoint = new IPEndPoint(IPAddress.Any, UDP.regularCommunicationToServer);
             receiver.Client.Bind(endpoint);
 
-            async void process_data(UdpReceiveResult res)
+            async Task process_data(UdpReceiveResult res)
             {
                 byte[] data = res.Buffer;
                 if (data.Length != 10)
@@ -128,8 +127,8 @@ namespace YoavProject
                 float y = BitConverter.ToSingle(data, 6);
                 PointF point = new PointF(x, y);
 
-                Console.WriteLine($"Received Type {messageType} | x: {x}, y: {y} from id: {clientId}");
-
+                //Console.WriteLine($"Received Type {messageType} | x: {x}, y: {y} from id: {clientId}");
+                Dictionary<int, IPEndPoint> snapshot;
                 lock (clientsLock)
                 {
                     udpEndpointsUsingID[clientId] = res.RemoteEndPoint;
@@ -142,9 +141,10 @@ namespace YoavProject
                         // Optional: handle case where player isn't found
                         Console.WriteLine($"Player with ID {clientId} not found.");
                     }
+                    snapshot = new Dictionary<int, IPEndPoint>(udpEndpointsUsingID);
                 }
 
-                foreach (var pair in udpEndpointsUsingID)
+                foreach (var pair in snapshot) //todo fix??
                 {
                     int otherId = pair.Key;
                     IPEndPoint ipEndPoint = new IPEndPoint(pair.Value.Address, UDP.regularCommunicationToClients);
@@ -168,11 +168,11 @@ namespace YoavProject
                 try
                 {
                     UdpReceiveResult result = await receiver.ReceiveAsync();
-                    process_data(result);
+                    await process_data(result);
                 }
-                catch (Exception ex)
+                catch (Exception e)
                 {
-                    Console.WriteLine("UDP Receive error: " + ex.Message);
+                    Console.WriteLine("UDP Receive error: " + e.Message);
                 }
 
             }

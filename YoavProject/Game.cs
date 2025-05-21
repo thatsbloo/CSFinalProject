@@ -76,7 +76,7 @@ namespace YoavProject
 
             if (packetType == (byte)Data.StateSync) // state sync
             {
-                byte[] playersBuffer = new byte[playerCount * 10]; // each player: 1 byte id + 4 float X + 4 float Y = 9 bytes
+                byte[] playersBuffer = new byte[playerCount * 10]; // each player: 1 byte id + + pos 4 float X + 4 float Y = 10 bytes
                 await stream.ReadAsync(playersBuffer, 0, playersBuffer.Length);
 
                 for (int i = 0; i < playerCount; i++)
@@ -86,12 +86,12 @@ namespace YoavProject
 
                     if (!BitConverter.IsLittleEndian)
                     {
-                        Array.Reverse(playersBuffer, offset+1, 4);
-                        Array.Reverse(playersBuffer, offset+5, 4);
+                        Array.Reverse(playersBuffer, offset+2, 4);
+                        Array.Reverse(playersBuffer, offset+6, 4);
                     }
 
-                    float x = BitConverter.ToSingle(playersBuffer, offset + 1);
-                    float y = BitConverter.ToSingle(playersBuffer, offset + 5);
+                    float x = BitConverter.ToSingle(playersBuffer, offset + 2);
+                    float y = BitConverter.ToSingle(playersBuffer, offset + 6);
 
                     Player p = new Player();
                     PointF pos = new PointF(x, y);

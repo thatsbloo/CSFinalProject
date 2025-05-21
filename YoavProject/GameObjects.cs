@@ -79,7 +79,7 @@ namespace YoavProject
             var screenPos = calcPositionOnScreen(this.position);
             var screenSize = calcSizeOnScreen();
 
-            //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
+            Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
 
             g.FillRectangle(Brushes.Blue, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));

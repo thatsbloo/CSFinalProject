@@ -115,6 +115,7 @@ namespace YoavProject
 
             sender.Send(message, message.Length, serverEndpoint);
             sender.Client.ReceiveTimeout = 500;
+            sender.Close();
 
         }
 
