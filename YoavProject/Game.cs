@@ -68,6 +68,39 @@ namespace YoavProject
             clientId = (int)buffer[0];
             connected = true;
 
+            byte[] headerBuffer = new byte[2];
+            await stream.ReadAsync(headerBuffer, 0, 2);
+
+            byte packetType = headerBuffer[0];
+            int playerCount = headerBuffer[1];
+
+            if (packetType == (byte)Data.StateSync) // state sync
+            {
+                byte[] playersBuffer = new byte[playerCount * 10]; // each player: 1 byte id + 4 float X + 4 float Y = 9 bytes
+                await stream.ReadAsync(playersBuffer, 0, playersBuffer.Length);
+
+                for (int i = 0; i < playerCount; i++)
+                {
+                    int offset = i * 10;
+                    byte id = (byte)playersBuffer[offset];
+
+                    if (!BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(playersBuffer, offset+1, 4);
+                        Array.Reverse(playersBuffer, offset+5, 4);
+                    }
+
+                    float x = BitConverter.ToSingle(playersBuffer, offset + 1);
+                    float y = BitConverter.ToSingle(playersBuffer, offset + 5);
+
+                    Player p = new Player();
+                    PointF pos = new PointF(x, y);
+                    p.position = pos;
+
+                    GameBoard.onlinePlayers.Add(id, p);
+                }
+            }
+
             _ = Task.Run(listenForUdpUpdatesAsync);
 
 

@@ -55,17 +55,36 @@ namespace YoavProject
 
                     int clientId = Interlocked.Increment(ref totalClients);
 
+                    Dictionary<int, Player> currPlayers = new Dictionary<int, Player>();
+                    List<byte> stateSyncList = new List<byte>();
                     lock (clientsLock)
                     {
+                        stateSyncList.Add((byte)Data.StateSync);
+                        stateSyncList.Add((byte)playersUsingID.Count);
+
+                        foreach (var pair in playersUsingID)
+                        {
+                            int id = pair.Key;
+                            Player p = pair.Value;
+
+                            // Full message includes the PositionUpdate header
+                            byte[] playerData = UDP.createByteMessage(Data.Position, id, p.position.X, p.position.Y);
+                            stateSyncList.AddRange(playerData);
+                        }
+
                         allClients.Add(client);
                         activeClientsUsingID.Add(clientId, client);
                         playersUsingID.Add(clientId, new Player());
+                        //copy playersusingid to currplayers
                     }
 
                     Console.WriteLine($"Client connected with ID {clientId}");
                     NetworkStream stream = client.GetStream();
                     byte byteId = (byte)clientId;
                     await stream.WriteAsync(new byte[] { byteId }, 0, 1);
+                    await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
+
+
 
                 }
                 catch (Exception e)
