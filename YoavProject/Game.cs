@@ -74,7 +74,7 @@ namespace YoavProject
             byte packetType = headerBuffer[0];
             int playerCount = headerBuffer[1];
 
-            if (packetType == (byte)Data.StateSync) // state sync
+            if (packetType == (byte)Data.CompleteStateSync) // state sync
             {
                 byte[] playersBuffer = new byte[playerCount * 10]; // each player: 1 byte id + + pos 4 float X + 4 float Y = 10 bytes
                 await stream.ReadAsync(playersBuffer, 0, playersBuffer.Length);
@@ -139,25 +139,33 @@ namespace YoavProject
             }
 
             byte messageType = data[0];
-            byte senderId = data[1];
+            byte playerCount = data[1];
 
-            if (!BitConverter.IsLittleEndian)
+            if (messageType == (byte)Data.PositionStateSync)
             {
-                Array.Reverse(data, 2, 4);
-                Array.Reverse(data, 6, 4);
-            }
+                for (int i = 0; i < playerCount; i++)
+                {
+                    int offset = i*9
+                    if (!BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(data, 3+offset, 4);
+                        Array.Reverse(data, 7+offset, 4);
+                    }
 
-            float x = BitConverter.ToSingle(data, 2);
-            float y = BitConverter.ToSingle(data, 6);
-            PointF position = new PointF(x, y);
+                    float playerx = BitConverter.ToSingle(data, 3+offset);
+                    float playery = BitConverter.ToSingle(data, 7+offset);
+                    PointF playerposition = new PointF(playerx, playery);
 
-            if (GameBoard.onlinePlayers.TryGetValue(senderId, out Player player))
-            {
-                player.position = position;
-            }
-            else
-            {
-                Console.WriteLine($"Received update for unknown player {senderId}");
+                    if (GameBoard.onlinePlayers.TryGetValue(data[2 + offset], out Player player))
+                    {
+                        player.position = playerposition;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Received update for unknown player {data[2+offset]}");
+                    }
+                }
+                
             }
         }
 

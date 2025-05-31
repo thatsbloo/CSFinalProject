@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -56,9 +57,11 @@ namespace YoavProject
                     int clientId = Interlocked.Increment(ref totalClients);
 
                     List<byte> stateSyncList = new List<byte>();
+                    Dictionary<int, TcpClient> clientSnapshot;
                     lock (clientsLock)
                     {
-                        stateSyncList.Add((byte)Data.StateSync);
+                        clientSnapshot = new Dictionary<int, TcpClient>(activeClientsUsingID);
+                        stateSyncList.Add((byte)Data.CompleteStateSync);
                         stateSyncList.Add((byte)playersUsingID.Count);
 
                         foreach (var pair in playersUsingID)
@@ -66,7 +69,7 @@ namespace YoavProject
                             int id = pair.Key;
                             Player p = pair.Value;
 
-                            // Full message includes the PositionUpdate header
+                            //full message includes the statesync
                             byte[] playerData = UDP.createByteMessage(Data.Position, id, p.position.X, p.position.Y);
                             stateSyncList.AddRange(playerData);
                         }
@@ -76,10 +79,22 @@ namespace YoavProject
                         playersUsingID.Add(clientId, new Player());
                         //copy playersusingid to currplayers
                     }
+                    byte byteId = (byte)clientId;
 
+                    //send new player joined to existing
+                    byte[] newPlayerBytes = new byte[1 + 1 + 4 + 4];
+                    newPlayerBytes[0] = (byte)Data.NewPlayer;
+                    Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
+
+                     
+                    foreach (TcpClient existingClient in clientSnapshot.Values)
+                    {
+                        await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
+                    }
                     Console.WriteLine($"Client connected with ID {clientId}");
                     NetworkStream stream = client.GetStream();
-                    byte byteId = (byte)clientId;
+                    
+                    //send id and then the positions of other clients to new client
                     await stream.WriteAsync(new byte[] { byteId }, 0, 1);
                     await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
 
@@ -138,7 +153,6 @@ namespace YoavProject
                     }
                     else
                     {
-                        // Optional: handle case where player isn't found
                         Console.WriteLine($"Player with ID {clientId} not found.");
                     }
                     snapshot = new Dictionary<int, IPEndPoint>(udpEndpointsUsingID);
@@ -180,16 +194,48 @@ namespace YoavProject
             receiver.Close();
         }
 
+        private async Task broadcastGameState()
+        {
+            using (UdpClient sender = new UdpClient())
+            {
+                sender.EnableBroadcast = true;
+
+                Dictionary<int, Player> playerSnapshot;
+
+                lock (clientsLock)
+                {
+                    playerSnapshot = new Dictionary<int, Player>(playersUsingID);
+                }
+
+                int playerCount = playerSnapshot.Count;
+                List<byte> data = new List<byte>();
+
+                data.Add((byte)Data.PositionStateSync);
+                data.Add((byte)playerCount);
+
+
+
+                foreach (var pair in playerSnapshot)
+                {
+                    byte[] playerData = UDP.createByteMessage(pair.Key, pair.Value.position.X, pair.Value.position.Y);
+                    data.AddRange(playerData);
+                }
+
+                try
+                {
+                    IPEndPoint broadcastEP = new IPEndPoint(IPAddress.Broadcast, UDP.regularCommunicationToClients);
+                    await sender.SendAsync(data.ToArray(), data.ToArray().Length, broadcastEP);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Broadcast failed: {e.Message}");
+                }
+            }
+        }
+
         private async void GameLoop_Tick(object sender, EventArgs e)
         {
-            UdpClient broadcaster = new UdpClient();
-            broadcaster.EnableBroadcast = true;
-
-            IPEndPoint allEndPoints = new IPEndPoint(IPAddress.Broadcast, UDP.regularCommunicationToClients);
-            //byte[] byteServerExists;
-
-            //broadcaster.Send(byteServerExists, byteServerExists.Length, allEndPoints);
-            //broadcaster.Client.ReceiveTimeout = 500;
+            await broadcastGameState();
         }
 
         private void Server_FormClosing(object sender, FormClosingEventArgs e)

@@ -11,7 +11,7 @@ using System.Windows.Forms;
 namespace YoavProject
 {
     enum Messages { ServerExists, DenyServerReq, ConnectingReq }
-    enum Data : byte { Position = 1, StateSync = 2 }
+    enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4 }
     
     
     static class UDP
@@ -137,6 +137,23 @@ namespace YoavProject
             {
                 Array.Reverse(bytes, 2, 4);
                 Array.Reverse(bytes, 6, 4);
+            }
+
+            return bytes;
+        }
+
+        public static byte[] createByteMessage(int id, float f1, float f2)
+        {
+            byte[] bytes = new byte[1 + 4 + 4];
+            bytes[0] = (byte)id;
+
+            Buffer.BlockCopy(BitConverter.GetBytes(f1), 0, bytes, 1, 4);
+            Buffer.BlockCopy(BitConverter.GetBytes(f2), 0, bytes, 5, 4);
+
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes, 1, 4);
+                Array.Reverse(bytes, 5, 4);
             }
 
             return bytes;
