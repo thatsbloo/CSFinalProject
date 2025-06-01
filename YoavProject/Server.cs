@@ -89,6 +89,7 @@ namespace YoavProject
                      
                     foreach (TcpClient existingClient in clientSnapshot.Values)
                     {
+                        Console.WriteLine("ahhhhh");
                         await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
                     }
                     Console.WriteLine($"Client connected with ID {clientId}");
@@ -166,6 +167,7 @@ namespace YoavProject
 
                     try
                     {
+                        Console.WriteLine("Sending?");
                         await receiver.SendAsync(data, data.Length, ipEndPoint);
                     }
                     catch (Exception e)

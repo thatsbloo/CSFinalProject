@@ -29,6 +29,8 @@ namespace YoavProject
 
         public static bool connected { get; private set; }
 
+        private static readonly object playersLock = new object();
+
         public Game()
         {
             InitializeComponent();
@@ -97,7 +99,12 @@ namespace YoavProject
                     PointF pos = new PointF(x, y);
                     p.position = pos;
 
-                    GameBoard.onlinePlayers.Add(id, p);
+                    lock (playersLock)
+                    {
+                        board.onlinePlayers.Add(id, p);
+                        online_players.Add(p);
+                    }
+                    
                 }
             }
 
@@ -145,7 +152,7 @@ namespace YoavProject
             {
                 for (int i = 0; i < playerCount; i++)
                 {
-                    int offset = i*9
+                    int offset = i * 9;
                     if (!BitConverter.IsLittleEndian)
                     {
                         Array.Reverse(data, 3+offset, 4);
@@ -166,6 +173,48 @@ namespace YoavProject
                     }
                 }
                 
+            }
+        }
+
+        private async Task listenForTcpUpdatesAsync()
+        {
+            NetworkStream stream = tcpClient.GetStream();
+            byte[] buffer = new byte[1024];
+
+            try
+            {
+                while(connected)
+                {
+                    int datatype = stream.ReadByte();
+
+                    if (datatype == -1)
+                    {
+                        Console.WriteLine("Disconnected [TCP].");
+                        break;
+                    }
+
+                    switch((Data)datatype)
+                    {
+                        case Data.NewPlayer:
+                            await StreamHelp.ReadExactlyAsync(stream, 9);
+
+                            byte playerId = buffer[0];
+                            float posX = BitConverter.ToSingle(buffer, 1);
+                            float posY = BitConverter.ToSingle(buffer, 5);
+
+                            Console.WriteLine($"New player joined! ID: {playerId}");
+
+                            Player p = new Player();
+                            p.position = new PointF(posX, posY);
+                            
+                            lock (playersLock)
+                            {
+                                board.onlinePlayers.Add(playerId, p);
+                                online_players.Add(p);
+                            }
+
+                    }
+                }
             }
         }
 

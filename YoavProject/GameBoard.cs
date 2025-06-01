@@ -26,7 +26,7 @@ namespace YoavProject
         private List<InteractableObject> interactables;
         private List<Costumer> costumers;
 
-        public static Dictionary<int, Player> onlinePlayers;
+        public Dictionary<int, Player> onlinePlayers;
 
         private GameObject topWall;
 

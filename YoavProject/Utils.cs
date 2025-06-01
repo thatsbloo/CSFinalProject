@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace YoavProject
@@ -159,5 +161,24 @@ namespace YoavProject
             return bytes;
         }
 
+    }
+
+    static class StreamHelp
+    {
+        public static async Task<byte[]> ReadExactlyAsync(this Stream stream, int length)
+        {
+            byte[] buffer = new byte[length];
+            int offset = 0;
+            while (offset < length)
+            {
+                int bytesRead = await stream.ReadAsync(buffer, offset, length - offset);
+                if (bytesRead == 0)
+                {
+                    throw new IOException("Unexpected end of stream.");
+                }
+                offset += bytesRead;
+            }
+            return buffer;
+        }
     }
 }
