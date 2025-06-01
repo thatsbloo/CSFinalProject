@@ -163,7 +163,7 @@ namespace YoavProject
                     float playery = BitConverter.ToSingle(data, 7+offset);
                     PointF playerposition = new PointF(playerx, playery);
 
-                    if (GameBoard.onlinePlayers.TryGetValue(data[2 + offset], out Player player))
+                    if (board.onlinePlayers.TryGetValue(data[2 + offset], out Player player))
                     {
                         player.position = playerposition;
                     }
@@ -212,10 +212,14 @@ namespace YoavProject
                                 board.onlinePlayers.Add(playerId, p);
                                 online_players.Add(p);
                             }
+                            break;
+                        default:
+                            break;
 
                     }
                 }
             }
+            catch (Exception ex) { Console.WriteLine(ex.ToString()); }
         }
 
         private void Game_Resize(object sender, EventArgs e)
