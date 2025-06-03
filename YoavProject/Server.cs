@@ -37,7 +37,7 @@ namespace YoavProject
         private async void Server_Load(object sender, EventArgs e)
         {
             serverRunning = true;
-            listener = new TcpListener(IPAddress.Any, UDP.regularCommunicationToServer);
+            listener = new TcpListener(IPAddress.Any, StreamHelp.tcpPort);
             listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             listener.Start();
 
@@ -167,7 +167,7 @@ namespace YoavProject
 
                     try
                     {
-                        Console.WriteLine("Sending?");
+                        //Console.WriteLine("Sending?");
                         await receiver.SendAsync(data, data.Length, ipEndPoint);
                     }
                     catch (Exception e)

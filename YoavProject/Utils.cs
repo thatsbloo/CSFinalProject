@@ -165,6 +165,7 @@ namespace YoavProject
 
     static class StreamHelp
     {
+        public static int tcpPort = 6055;
         public static async Task<byte[]> ReadExactlyAsync(this Stream stream, int length)
         {
             byte[] buffer = new byte[length];

@@ -61,7 +61,7 @@ namespace YoavProject
             //Controls.Add(self);
 
             UDP.serverDoesntExist();
-            tcpClient = new TcpClient(UDP.serverAddress.ToString(), UDP.regularCommunicationToServer);
+            tcpClient = new TcpClient(UDP.serverAddress.ToString(), StreamHelp.tcpPort);
             NetworkStream stream = tcpClient.GetStream();
 
             // read byte for client id
@@ -109,6 +109,7 @@ namespace YoavProject
             }
 
             _ = Task.Run(listenForUdpUpdatesAsync);
+            _ = Task.Run(listenForTcpUpdatesAsync);
 
 
         }
@@ -118,14 +119,15 @@ namespace YoavProject
             UdpClient listener = new UdpClient();
             listener.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
-            IPEndPoint serverEP = new IPEndPoint(UDP.serverAddress, UDP.regularCommunicationToClients);
+            IPEndPoint serverEP = new IPEndPoint(IPAddress.Any, UDP.regularCommunicationToClients);
             listener.Client.Bind(serverEP);
             while (connected)
             {
                 try
                 {
                     UdpReceiveResult res = await listener.ReceiveAsync();
-                    handleUdpUpdate(res);
+                    if (res.RemoteEndPoint.Address.Equals(UDP.serverAddress))
+                        handleUdpUpdate(res);
                 }
                 catch (Exception e)
                 {
@@ -139,11 +141,11 @@ namespace YoavProject
         private void handleUdpUpdate(UdpReceiveResult res)
         {
             byte[] data = res.Buffer;
-            if (data.Length != 10)
-            {
-                Console.WriteLine("Invalid packet size");
-                return;
-            }
+            //if (data.Length != 10)
+            //{
+            //    Console.WriteLine("Invalid packet size");
+            //    return;
+            //}
 
             byte messageType = data[0];
             byte playerCount = data[1];
@@ -196,11 +198,11 @@ namespace YoavProject
                     switch((Data)datatype)
                     {
                         case Data.NewPlayer:
-                            await StreamHelp.ReadExactlyAsync(stream, 9);
+                            byte[] res = await StreamHelp.ReadExactlyAsync(stream, 9);
 
-                            byte playerId = buffer[0];
-                            float posX = BitConverter.ToSingle(buffer, 1);
-                            float posY = BitConverter.ToSingle(buffer, 5);
+                            byte playerId = res[0];
+                            float posX = BitConverter.ToSingle(res, 1);
+                            float posY = BitConverter.ToSingle(res, 5);
 
                             Console.WriteLine($"New player joined! ID: {playerId}");
 
