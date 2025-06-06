@@ -118,7 +118,7 @@ namespace YoavProject
         public int freeChairs;
         public Table() : this(new PointF(0f, 0f)) { }
 
-        public Table(PointF position, int chairs = 2)
+        public Table(PointF position, int chairs = 4)
         {
             this.size = new SizeF(3, 2);
             this.hitboxSize = new SizeF(3, 2);
@@ -136,7 +136,7 @@ namespace YoavProject
 
 
             g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
-            g.DrawString(freeChairs + "/" + chairs + " free", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
+            g.DrawString(0 + "/" + chairs + " taken", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
 
             base.draw(g);
         }

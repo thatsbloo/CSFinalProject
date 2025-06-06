@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Resources;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -42,7 +43,7 @@ namespace YoavProject
             this.DoubleBuffered = true;
             this.BackColor = Color.Black;
 
-            backgroundSpriteSheet = Image.FromFile("C:\\Users\\yoavt\\Documents\\YehudaProjects\\YoavProject\\YoavProject\\Assets\\Background.png");
+            backgroundSpriteSheet = Properties.Resources.Background;
 
             rows = 9;
             cols = 12; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))

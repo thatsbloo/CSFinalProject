@@ -8,7 +8,9 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -25,10 +27,15 @@ namespace YoavProject
         public static Dictionary<int, TcpClient> activeClientsUsingID = new Dictionary<int, TcpClient>();
         public static Dictionary<int, IPEndPoint> udpEndpointsUsingID = new Dictionary<int, IPEndPoint>();
 
+        public static Dictionary<TcpClient, string> AESkeysUsingClients = new Dictionary<TcpClient, string>();
+
         public static Dictionary<int, Player> playersUsingID = new Dictionary<int, Player>();
 
         public static int totalClients = 0;
         private static readonly object clientsLock = new object();
+
+        private string RSApublic;
+        private string RSAprivate;
         public Server()
         {
             InitializeComponent();
@@ -40,6 +47,9 @@ namespace YoavProject
             listener = new TcpListener(IPAddress.Any, StreamHelp.tcpPort);
             listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             listener.Start();
+
+            (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
+            Console.WriteLine(RSApublic);
 
             UDP.denyOthers();
             _ = Task.Run(acceptClientsAsync);
@@ -53,8 +63,28 @@ namespace YoavProject
                 try
                 {
                     TcpClient client = await listener.AcceptTcpClientAsync();
+                    NetworkStream stream = client.GetStream();
 
                     int clientId = Interlocked.Increment(ref totalClients);
+
+                    byte[] RSApublicbytes = Convert.FromBase64String(RSApublic);
+                    Console.WriteLine(RSApublicbytes);
+                    Console.WriteLine(RSApublicbytes.Length);
+                    byte[] RSAbytesLength = BitConverter.GetBytes(RSApublicbytes.Length);
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(RSAbytesLength);
+
+                    await stream.WriteAsync(RSAbytesLength, 0, 4);
+                    await stream.WriteAsync(RSApublicbytes, 0, RSApublicbytes.Length);
+
+                    byte[] aeskeylength = await StreamHelp.ReadExactlyAsync(stream, 4);
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(aeskeylength);
+
+                    int aesactuallength = BitConverter.ToInt32(aeskeylength, 0);
+                    byte[] aeskeyenc = await StreamHelp.ReadExactlyAsync(stream, aesactuallength);
+
+                    string aesKey = Convert.ToBase64String(Encryption.decryptRSA(aeskeyenc, RSAprivate));
 
                     List<byte> stateSyncList = new List<byte>();
                     Dictionary<int, TcpClient> clientSnapshot;
@@ -93,7 +123,7 @@ namespace YoavProject
                         await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
                     }
                     Console.WriteLine($"Client connected with ID {clientId}");
-                    NetworkStream stream = client.GetStream();
+                    
                     
                     //send id and then the positions of other clients to new client
                     await stream.WriteAsync(new byte[] { byteId }, 0, 1);

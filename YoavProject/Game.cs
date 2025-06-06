@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -30,6 +31,10 @@ namespace YoavProject
         public static bool connected { get; private set; }
 
         private static readonly object playersLock = new object();
+
+        private string RSApublicKey;
+
+        private string AESkey;
 
         public Game()
         {
@@ -63,6 +68,28 @@ namespace YoavProject
             UDP.serverDoesntExist();
             tcpClient = new TcpClient(UDP.serverAddress.ToString(), StreamHelp.tcpPort);
             NetworkStream stream = tcpClient.GetStream();
+
+            byte[] rsakeylength = await StreamHelp.ReadExactlyAsync(stream, 4);
+            
+            if (!BitConverter.IsLittleEndian)
+                Array.Reverse(rsakeylength);
+
+            int rsaactuallength = BitConverter.ToInt32(rsakeylength, 0);
+            byte[] RSApublic = await StreamHelp.ReadExactlyAsync(stream, rsaactuallength);
+
+            RSApublicKey = Convert.ToBase64String(RSApublic);
+
+            AESkey = Encryption.generateAESkey();
+
+            byte[] AESkeyEncrypted = Encryption.encryptRSA(Convert.FromBase64String(AESkey), RSApublicKey);
+            byte[] AESlengthPrefix = BitConverter.GetBytes(AESkeyEncrypted.Length);
+            if (!BitConverter.IsLittleEndian)
+                Array.Reverse(AESlengthPrefix);
+
+            await stream.WriteAsync(AESlengthPrefix, 0, 4);
+            await stream.WriteAsync(AESkeyEncrypted, 0, AESkeyEncrypted.Length);
+
+
 
             // read byte for client id
             byte[] buffer = new byte[1];
