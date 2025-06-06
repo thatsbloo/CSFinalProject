@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -21,6 +22,7 @@ namespace YoavProject
         private List<Player> online_players;
         //private Player self;
         private GameBoard board;
+        private RegisterLogin login;
 
         private Image backgroundSpriteSheet;
 
@@ -29,6 +31,8 @@ namespace YoavProject
         public static bool isDebugMode { get; private set; }
 
         public static bool connected { get; private set; }
+
+        public static bool signup { get; private set; }
 
         private static readonly object playersLock = new object();
 
@@ -47,9 +51,16 @@ namespace YoavProject
 
             isDebugMode = false;
 
+            connected = false;
+            signup = false;
+
             //self = new Player();
             online_players = new List<Player>();
             board = new GameBoard();
+
+            login = new RegisterLogin();
+            login.loginPressed += handleLogin;
+            login.registerPressed += handleRegister;
 
             pressedKeys = new HashSet<Keys>();
 
@@ -58,13 +69,16 @@ namespace YoavProject
         private TcpClient tcpClient;
         public static int clientId { get; private set; }
 
+        
         private async void Game_Load(object sender, EventArgs e)
         {
             Controls.Add(board);
+            Controls.Add(login);
             this.ClientSize = new Size(64 * board.cols, 64 * board.rows);
             board.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
             //Controls.Add(self);
 
+            
             UDP.serverDoesntExist();
             tcpClient = new TcpClient(UDP.serverAddress.ToString(), StreamHelp.tcpPort);
             NetworkStream stream = tcpClient.GetStream();
@@ -88,7 +102,9 @@ namespace YoavProject
 
             await stream.WriteAsync(AESlengthPrefix, 0, 4);
             await stream.WriteAsync(AESkeyEncrypted, 0, AESkeyEncrypted.Length);
+            signup = true;
 
+            Task.Run(handleServerLoginReplies);
 
 
             // read byte for client id
@@ -139,6 +155,97 @@ namespace YoavProject
             _ = Task.Run(listenForTcpUpdatesAsync);
 
 
+        }
+
+        private async Task handleServerLoginReplies()
+        {
+            NetworkStream stream = tcpClient.GetStream();
+            byte[] buffer = new byte[1024];
+
+            try
+            {
+                while (signup)
+                {
+                    int msgtype = stream.ReadByte();
+
+                    if (msgtype == -1)
+                    {
+                        Console.WriteLine("Disconnected [TCP].");
+                        break;
+                    }
+
+                    switch ((Registration)msgtype)
+                    {
+                        case Registration.ErrorTaken:
+                            login.displayErrorMessage("Username already taken!");
+                            break;
+                        case Registration.ErrorWrong:
+                            login.displayErrorMessage("Incorrect password!");
+                            break;
+                        case Registration.RegisterSuccess:
+                            login.displaySuccessMessage("Registration successful!");
+                            break;
+                        case Registration.LoginSuccess:
+                            //TODO: add more stuff
+                            login.Dispose();
+                            signup = false;
+                            break;
+                        default:
+                            break;
+
+                    }
+                }
+            }
+            catch (Exception ex) { Console.WriteLine(ex.ToString()); }
+        }
+
+        private async void handleLogin()
+        {
+            if (!login.areFieldsValid())
+            {
+                login.displayErrorMessage("Username and Password must only include English letters and numbers!");
+            }
+            Stream stream = tcpClient.GetStream();
+            List<byte> data = new List<byte>();
+
+            data.Add((byte)Registration.Login);
+            string username = login.getUsername();
+            string pass = login.getPassword();
+            int length = username.Length + pass.Length;
+            byte[] lengthbyte = BitConverter.GetBytes(length);
+            byte[] usernamelength = BitConverter.GetBytes(username.Length);
+
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(lengthbyte);
+                Array.Reverse(usernamelength);
+            }
+                
+
+            data.AddRange(lengthbyte);
+            data.AddRange(usernamelength);
+            data.AddRange(Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey));
+            data.AddRange(Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey));
+
+            await stream.WriteAsync(data.ToArray(), 0, data.Count);
+        }
+
+        private async void handleRegister()
+        {
+            if (!login.areFieldsValid())
+            {
+                login.displayErrorMessage("Username and Password must only include English letters and numbers!");
+            }
+            Stream stream = tcpClient.GetStream();
+            List<byte> data = new List<byte>();
+
+            data.Add((byte)Registration.Register);
+            string username = login.getUsername();
+            string pass = login.getPassword();
+            data.AddRange(Encryption.encryptAES(Convert.FromBase64String(username), AESkey));
+            data.AddRange(Encryption.encryptAES(Convert.FromBase64String(pass), AESkey));
+
+            await stream.WriteAsync(data.ToArray(), 0, data.Count);
         }
 
         private async Task listenForUdpUpdatesAsync()

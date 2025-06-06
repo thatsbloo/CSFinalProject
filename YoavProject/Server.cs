@@ -85,6 +85,9 @@ namespace YoavProject
                     byte[] aeskeyenc = await StreamHelp.ReadExactlyAsync(stream, aesactuallength);
 
                     string aesKey = Convert.ToBase64String(Encryption.decryptRSA(aeskeyenc, RSAprivate));
+                    AESkeysUsingClients.Add(client, aesKey);
+
+
 
                     List<byte> stateSyncList = new List<byte>();
                     Dictionary<int, TcpClient> clientSnapshot;
@@ -261,6 +264,55 @@ namespace YoavProject
                 catch (Exception e)
                 {
                     Console.WriteLine($"Broadcast failed: {e.Message}");
+                }
+            }
+        }
+
+        private async Task handleClientTcpAsync(TcpClient client)
+        {
+            bool isSignedIn = false;
+            try
+            {
+                using (NetworkStream stream = client.GetStream())
+                {
+                    byte[] buffer = new byte[1024];
+
+                    while (serverRunning && client.Connected)
+                    {
+                        int databyte = stream.ReadByte();
+
+                        if (databyte == -1)
+                        {
+                            Console.WriteLine("Disconnected Client[TCP].");
+                            break;
+                        }
+
+                        if (!isSignedIn)
+                        {
+                            switch((Registration)databyte)
+                            {
+                                case Registration.Register:
+                                    byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                                    if (!BitConverter.IsLittleEndian)
+                                        Array.Reverse(lengthbyte);
+                                    int length = BitConverter.ToInt32(lengthbyte, 0);
+
+                                    byte[] usernamelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                                    if (!BitConverter.IsLittleEndian)
+                                        Array.Reverse(usernamelengthbyte);
+                                    int usernamelength = BitConverter.ToInt32(usernamelengthbyte, 0);
+
+                                    byte[] usernameinbytesenc = await StreamHelp.ReadExactlyAsync(stream, usernamelength);
+                                    byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
+
+                                    string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
+                                    if (username)
+                                    string password = 
+                                    
+                                    break;
+                            }
+                        }
+                    }
                 }
             }
         }
