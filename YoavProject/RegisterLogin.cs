@@ -30,12 +30,12 @@ namespace YoavProject
 
         private void register_Click(object sender, EventArgs e)
         {
-
+            registerPressed?.Invoke();
         }
 
         private void login_Click(object sender, EventArgs e)
         {
-
+            loginPressed?.Invoke();
         }
 
         public bool areFieldsValid()

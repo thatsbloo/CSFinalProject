@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices.ComTypes;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
@@ -68,7 +69,7 @@ namespace YoavProject
                     TcpClient client = await listener.AcceptTcpClientAsync();
                     NetworkStream stream = client.GetStream();
 
-                    int clientId = Interlocked.Increment(ref totalClients);
+                    
 
                     byte[] RSApublicbytes = Convert.FromBase64String(RSApublic);
                     Console.WriteLine(RSApublicbytes);
@@ -90,53 +91,8 @@ namespace YoavProject
                     string aesKey = Convert.ToBase64String(Encryption.decryptRSA(aeskeyenc, RSAprivate));
                     AESkeysUsingClients.Add(client, aesKey);
 
-
-
-                    List<byte> stateSyncList = new List<byte>();
-                    Dictionary<int, TcpClient> clientSnapshot;
-                    lock (clientsLock)
-                    {
-                        clientSnapshot = new Dictionary<int, TcpClient>(activeClientsUsingID);
-                        stateSyncList.Add((byte)Data.CompleteStateSync);
-                        stateSyncList.Add((byte)playersUsingID.Count);
-
-                        foreach (var pair in playersUsingID)
-                        {
-                            int id = pair.Key;
-                            Player p = pair.Value;
-
-                            //full message includes the statesync
-                            byte[] playerData = UDP.createByteMessage(Data.Position, id, p.position.X, p.position.Y);
-                            stateSyncList.AddRange(playerData);
-                        }
-
-                        allClients.Add(client);
-                        activeClientsUsingID.Add(clientId, client);
-                        playersUsingID.Add(clientId, new Player());
-                        //copy playersusingid to currplayers
-                    }
-                    byte byteId = (byte)clientId;
-
-                    //send new player joined to existing
-                    byte[] newPlayerBytes = new byte[1 + 1 + 4 + 4];
-                    newPlayerBytes[0] = (byte)Data.NewPlayer;
-                    Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
-
-
-                    foreach (TcpClient existingClient in clientSnapshot.Values)
-                    {
-                        Console.WriteLine("ahhhhh");
-                        await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
-                    }
-                    Console.WriteLine($"Client connected with ID {clientId}");
-
-
-                    //send id and then the positions of other clients to new client
-                    await stream.WriteAsync(new byte[] { byteId }, 0, 1);
-                    await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
-
-
-
+                    await Task.Run(() => handleClientTcpAsync(client));
+                    
                 }
                 catch (Exception e)
                 {
@@ -144,6 +100,63 @@ namespace YoavProject
                         Console.Write("Error accepting client: " + e.Message);
                 }
             }
+        }
+
+        private async Task connectClientToGame(TcpClient client)
+        {
+            try
+            {
+                NetworkStream stream = client.GetStream();
+                int clientId = Interlocked.Increment(ref totalClients);
+
+                List<byte> stateSyncList = new List<byte>();
+                Dictionary<int, TcpClient> clientSnapshot;
+                lock (clientsLock)
+                {
+                    clientSnapshot = new Dictionary<int, TcpClient>(activeClientsUsingID);
+                    stateSyncList.Add((byte)Data.CompleteStateSync);
+                    stateSyncList.Add((byte)playersUsingID.Count);
+
+                    foreach (var pair in playersUsingID)
+                    {
+                        int id = pair.Key;
+                        Player p = pair.Value;
+
+                        //full message includes the statesync
+                        byte[] playerData = UDP.createByteMessage(Data.Position, id, p.position.X, p.position.Y);
+                        stateSyncList.AddRange(playerData);
+                    }
+
+                    allClients.Add(client);
+                    activeClientsUsingID.Add(clientId, client);
+                    playersUsingID.Add(clientId, new Player());
+                    //copy playersusingid to currplayers
+                }
+                byte byteId = (byte)clientId;
+
+                //send new player joined to existing
+                byte[] newPlayerBytes = new byte[1 + 1 + 4 + 4];
+                newPlayerBytes[0] = (byte)Data.NewPlayer;
+                Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
+
+
+                foreach (TcpClient existingClient in clientSnapshot.Values)
+                {
+                    Console.WriteLine("ahhhhh");
+                    await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
+                }
+                Console.WriteLine($"Client connected with ID {clientId}");
+
+
+                //send id and then the positions of other clients to new client
+                await stream.WriteAsync(new byte[] { byteId }, 0, 1);
+                await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
+            }
+            catch (Exception ex) 
+            {
+                Console.WriteLine("Error connecting client to game: " + ex.StackTrace);
+            }
+
         }
 
         private async Task handleClientUdpAsync()
@@ -190,7 +203,7 @@ namespace YoavProject
                     }
                     else
                     {
-                        Console.WriteLine($"Player with ID {clientId} not found.");
+                        Console.WriteLine($"Player with ID {clientId} not found. ");
                     }
                     snapshot = new Dictionary<int, IPEndPoint>(udpEndpointsUsingID);
                 }
@@ -292,26 +305,34 @@ namespace YoavProject
 
                         if (!isSignedIn)
                         {
+                            Console.WriteLine("reading length of everything");
                             byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
                             if (!BitConverter.IsLittleEndian)
                                 Array.Reverse(lengthbyte);
+                            Console.WriteLine("converting length to int32");
                             int length = BitConverter.ToInt32(lengthbyte, 0);
+                            Console.WriteLine(length);
 
+                            Console.WriteLine("reading length of username");
                             byte[] usernamelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
                             if (!BitConverter.IsLittleEndian)
                                 Array.Reverse(usernamelengthbyte);
+                            Console.WriteLine("converting length to int32");
                             int usernamelength = BitConverter.ToInt32(usernamelengthbyte, 0);
+                            Console.WriteLine(usernamelength);
 
                             byte[] usernameinbytesenc = await StreamHelp.ReadExactlyAsync(stream, usernamelength);
                             byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
+                            Console.WriteLine("read username and password");
 
                             string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
-
+                            Console.WriteLine(username);
                             if (RegisterLogin.isFieldValid(username))
                             {
                                 switch ((Registration)databyte)
                                 {
                                     case Registration.Register:
+                                        Console.WriteLine("register");
                                         if (JsonHandler.userExists(username))
                                             stream.WriteByte((byte)Registration.ErrorTaken);
                                         else
@@ -341,12 +362,26 @@ namespace YoavProject
                                                 {
                                                     if (JsonHandler.verifyLogin(username, password))
                                                     {
-
+                                                        stream.WriteByte((byte)Registration.LoginSuccess);
+                                                        isSignedIn = true;
+                                                        await Task.Run(() => connectClientToGame(client));
                                                     }
+                                                    else
+                                                    {
+                                                        stream.WriteByte((byte)Registration.ErrorWrong);
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    stream.WriteByte((byte)Registration.ErrorInvalid);
                                                 }
                                             }
                                         }
-                                            
+                                        else
+                                        {
+                                            stream.WriteByte((byte)Registration.ErrorWrong);
+                                        }
+
                                         break;
 
                                 }
@@ -356,9 +391,14 @@ namespace YoavProject
                                 stream.WriteByte((byte)Registration.ErrorInvalid);
                             }
                         }
+                        else
+                        {
+
+                        }
                     }
                 }
             }
+            catch (Exception e) { } //TODO ADD
         }
 
         private async void GameLoop_Tick(object sender, EventArgs e)

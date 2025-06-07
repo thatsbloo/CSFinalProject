@@ -195,8 +195,11 @@ namespace YoavProject
             handle_borders(wallHeight, rows, 0, cols);
             handle_interactables();
 
-            byte[] messageToSend = UDP.createByteMessage(Data.Position, pos.X, pos.Y);
-            UDP.sendToServer(messageToSend);
+            if (Game.connected)
+            {
+                byte[] messageToSend = UDP.createByteMessage(Data.Position, pos.X, pos.Y);
+                UDP.sendToServer(messageToSend);
+            }
             player.position = pos;
         }
 

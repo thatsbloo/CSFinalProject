@@ -115,8 +115,12 @@ namespace YoavProject
             using (Aes aes = Aes.Create())
             {
                 aes.Key = key;
+                Console.WriteLine($"Key length: {key.Length} bytes");
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
+                if (message.Length < aes.BlockSize / 8)
+                    throw new ArgumentException("Encrypted message too short to contain IV.");
+
 
                 byte[] iv = new byte[aes.BlockSize / 8];
                 Array.Copy(message, iv, iv.Length);
@@ -132,5 +136,6 @@ namespace YoavProject
                 }
             }
         }
+
     }
 }

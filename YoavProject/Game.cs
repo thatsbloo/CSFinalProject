@@ -9,6 +9,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
@@ -72,7 +73,7 @@ namespace YoavProject
         
         private async void Game_Load(object sender, EventArgs e)
         {
-            Controls.Add(board);
+            //Controls.Add(board);
             Controls.Add(login);
             this.ClientSize = new Size(64 * board.cols, 64 * board.rows);
             board.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
@@ -104,9 +105,14 @@ namespace YoavProject
             await stream.WriteAsync(AESkeyEncrypted, 0, AESkeyEncrypted.Length);
             signup = true;
 
-            Task.Run(handleServerLoginReplies);
+            await Task.Run(handleServerLoginReplies);
 
 
+        }
+
+        private async Task joinTheGameWorld()
+        {
+            NetworkStream stream = tcpClient.GetStream();
             // read byte for client id
             byte[] buffer = new byte[1];
             await stream.ReadAsync(buffer, 0, 1);
@@ -131,8 +137,8 @@ namespace YoavProject
 
                     if (!BitConverter.IsLittleEndian)
                     {
-                        Array.Reverse(playersBuffer, offset+2, 4);
-                        Array.Reverse(playersBuffer, offset+6, 4);
+                        Array.Reverse(playersBuffer, offset + 2, 4);
+                        Array.Reverse(playersBuffer, offset + 6, 4);
                     }
 
                     float x = BitConverter.ToSingle(playersBuffer, offset + 2);
@@ -147,14 +153,12 @@ namespace YoavProject
                         board.onlinePlayers.Add(id, p);
                         online_players.Add(p);
                     }
-                    
+
                 }
             }
 
             _ = Task.Run(listenForUdpUpdatesAsync);
             _ = Task.Run(listenForTcpUpdatesAsync);
-
-
         }
 
         private async Task handleServerLoginReplies()
@@ -180,14 +184,21 @@ namespace YoavProject
                             login.displayErrorMessage("Username already taken!");
                             break;
                         case Registration.ErrorWrong:
-                            login.displayErrorMessage("Incorrect password!");
+                            login.displayErrorMessage("Incorrect username or password!");
+                            break;
+                        case Registration.ErrorInvalid:
+                            login.displayErrorMessage("Invalid username!");
+                            break;
+                        case Registration.ErrorLoggedIn:
+                            login.displayErrorMessage("This user is already logged in!");
                             break;
                         case Registration.RegisterSuccess:
                             login.displaySuccessMessage("Registration successful!");
                             break;
                         case Registration.LoginSuccess:
-                            //TODO: add more stuff
+                            
                             login.Dispose();
+                            Controls.Add(board);
                             signup = false;
                             break;
                         default:
@@ -211,21 +222,23 @@ namespace YoavProject
             data.Add((byte)Registration.Login);
             string username = login.getUsername();
             string pass = login.getPassword();
-            int length = username.Length + pass.Length;
-            byte[] lengthbyte = BitConverter.GetBytes(length);
-            byte[] usernamelength = BitConverter.GetBytes(username.Length);
+            byte[] encryptedUsername = Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey);
+            byte[] encryptedPassword = Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey);
+
+            int totalLength = encryptedUsername.Length + encryptedPassword.Length;
+            byte[] lengthBytes = BitConverter.GetBytes(totalLength);
+            byte[] usernameLengthBytes = BitConverter.GetBytes(encryptedUsername.Length);
 
             if (!BitConverter.IsLittleEndian)
             {
-                Array.Reverse(lengthbyte);
-                Array.Reverse(usernamelength);
+                Array.Reverse(lengthBytes);
+                Array.Reverse(usernameLengthBytes);
             }
-                
 
-            data.AddRange(lengthbyte);
-            data.AddRange(usernamelength);
-            data.AddRange(Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey));
-            data.AddRange(Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey));
+            data.AddRange(lengthBytes);
+            data.AddRange(usernameLengthBytes);
+            data.AddRange(encryptedUsername);
+            data.AddRange(encryptedPassword);
 
             await stream.WriteAsync(data.ToArray(), 0, data.Count);
         }
@@ -242,8 +255,24 @@ namespace YoavProject
             data.Add((byte)Registration.Register);
             string username = login.getUsername();
             string pass = login.getPassword();
-            data.AddRange(Encryption.encryptAES(Convert.FromBase64String(username), AESkey));
-            data.AddRange(Encryption.encryptAES(Convert.FromBase64String(pass), AESkey));
+
+            byte[] encryptedUsername = Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey);
+            byte[] encryptedPassword = Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey);
+
+            int totalLength = encryptedUsername.Length + encryptedPassword.Length;
+            byte[] lengthBytes = BitConverter.GetBytes(totalLength);
+            byte[] usernameLengthBytes = BitConverter.GetBytes(encryptedUsername.Length);
+
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(lengthBytes);
+                Array.Reverse(usernameLengthBytes);
+            }
+
+            data.AddRange(lengthBytes);
+            data.AddRange(usernameLengthBytes);
+            data.AddRange(encryptedUsername);
+            data.AddRange(encryptedPassword);
 
             await stream.WriteAsync(data.ToArray(), 0, data.Count);
         }
