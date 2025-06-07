@@ -196,10 +196,16 @@ namespace YoavProject
                             login.displaySuccessMessage("Registration successful!");
                             break;
                         case Registration.LoginSuccess:
+                            Invoke((MethodInvoker)delegate {
+                                Controls.Remove(login);
+                                login.Dispose();
+                                Controls.Add(board);
+                                //board.Dock = DockStyle.Fill;
+                                board.BringToFront();
+                                board.Show();
+                                signup = false;
+                            });
                             
-                            login.Dispose();
-                            Controls.Add(board);
-                            signup = false;
                             break;
                         default:
                             break;
