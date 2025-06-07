@@ -36,6 +36,8 @@ namespace YoavProject
 
         private string RSApublic;
         private string RSAprivate;
+
+        private JsonHandler JsonHandler;
         public Server()
         {
             InitializeComponent();
@@ -50,6 +52,7 @@ namespace YoavProject
 
             (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
             Console.WriteLine(RSApublic);
+            JsonHandler = new JsonHandler();
 
             UDP.denyOthers();
             _ = Task.Run(acceptClientsAsync);
@@ -306,8 +309,16 @@ namespace YoavProject
                                     byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
 
                                     string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
-                                    if (username)
-                                    string password = 
+                                    if (RegisterLogin.isFieldValid(username))
+                                    {
+                                        if (JsonHandler.userExists(username))
+                                            stream.WriteByte((byte)Registration.ErrorTaken);
+                                        else
+                                        {
+                                            string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
+                                        }
+                                    }
+                                    
                                     
                                     break;
                             }

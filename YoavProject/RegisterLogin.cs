@@ -40,12 +40,16 @@ namespace YoavProject
 
         public bool areFieldsValid()
         {
-            if (string.IsNullOrEmpty(password.Text)) return false;
-            if (string.IsNullOrEmpty(username.Text)) return false;
-            if (!password.Text.All(c => char.IsLetterOrDigit(c))) return false;
-            if (!username.Text.All(c => char.IsLetterOrDigit(c))) return false;
-
+            if (!isFieldValid(getUsername())) return false;
+            if (!isFieldValid(getPassword())) return false;
             // Check all characters are letters or digits
+            return true;
+        }
+
+        public static bool isFieldValid(string field)
+        {
+            if (string.IsNullOrEmpty(field)) return false;
+            if (!field.All(c => char.IsLetterOrDigit(c))) return false;
             return true;
         }
 
