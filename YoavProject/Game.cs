@@ -200,7 +200,6 @@ namespace YoavProject
                                 Controls.Remove(login);
                                 login.Dispose();
                                 Controls.Add(board);
-                                //board.Dock = DockStyle.Fill;
                                 board.BringToFront();
                                 board.Show();
                                 signup = false;
@@ -215,7 +214,7 @@ namespace YoavProject
             }
             catch (Exception ex) { Console.WriteLine(ex.ToString()); }
         }
-
+        
         private async void handleLogin()
         {
             if (!login.areFieldsValid())

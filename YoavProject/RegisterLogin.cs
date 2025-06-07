@@ -42,7 +42,7 @@ namespace YoavProject
         {
             if (!isFieldValid(getUsername())) return false;
             if (!isFieldValid(getPassword())) return false;
-            // Check all characters are letters or digits
+            // check all characters are letters or digits
             return true;
         }
 
