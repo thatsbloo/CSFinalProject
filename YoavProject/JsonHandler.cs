@@ -1,8 +1,10 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -20,6 +22,7 @@ namespace YoavProject
         }
 
         private Dictionary<string, User> users;
+        private List<string> loggedusers = new List<string>();
 
         public JsonHandler()
         {
@@ -68,10 +71,38 @@ namespace YoavProject
             return false;
         }
 
-        public bool addUser(string username, string hashedPassword, string salt)
+        public bool verifyLogin(string username, string password)
+        {
+            if (users.TryGetValue(username, out var entry))
+            {
+                string hash = getHashString(password + entry.salt);
+                if (hash == entry.hashedPassword && !loggedusers.Contains(username))
+                {
+                    loggedusers.Add(username);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool userLoggedIn(string username)
+        {
+            return loggedusers.Contains(username);
+        }
+
+        public void disconnectUser(string username)
+        {
+            if (loggedusers.Contains(username))
+                loggedusers.Remove(username);
+        }
+
+        public bool addUser(string username, string password)
         {
             if (users.ContainsKey(username))
                 return false;
+
+            string salt = generateSalt();
+            string hashedPassword = getHashString(password + salt);
 
             users[username] = new User
             {
@@ -81,6 +112,28 @@ namespace YoavProject
 
             saveUsers();
             return true;
+        }
+
+        private static string generateSalt(int length = 16)
+        {
+            var rng = new RNGCryptoServiceProvider();
+            byte[] saltBytes = new byte[length];
+            rng.GetBytes(saltBytes);
+            return Convert.ToBase64String(saltBytes);
+        }
+        private static byte[] getHash(string inputString)
+        {
+            using (HashAlgorithm algorithm = SHA256.Create())
+                return algorithm.ComputeHash(Encoding.UTF8.GetBytes(inputString));
+        }
+
+        private static string getHashString(string inputString)
+        {
+            StringBuilder sb = new StringBuilder();
+            foreach (byte b in getHash(inputString))
+                sb.Append(b.ToString("X2"));
+
+            return sb.ToString();
         }
     }
 }

@@ -122,15 +122,15 @@ namespace YoavProject
                     newPlayerBytes[0] = (byte)Data.NewPlayer;
                     Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
 
-                     
+
                     foreach (TcpClient existingClient in clientSnapshot.Values)
                     {
                         Console.WriteLine("ahhhhh");
                         await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
                     }
                     Console.WriteLine($"Client connected with ID {clientId}");
-                    
-                    
+
+
                     //send id and then the positions of other clients to new client
                     await stream.WriteAsync(new byte[] { byteId }, 0, 1);
                     await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
@@ -292,35 +292,68 @@ namespace YoavProject
 
                         if (!isSignedIn)
                         {
-                            switch((Registration)databyte)
+                            byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                            if (!BitConverter.IsLittleEndian)
+                                Array.Reverse(lengthbyte);
+                            int length = BitConverter.ToInt32(lengthbyte, 0);
+
+                            byte[] usernamelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                            if (!BitConverter.IsLittleEndian)
+                                Array.Reverse(usernamelengthbyte);
+                            int usernamelength = BitConverter.ToInt32(usernamelengthbyte, 0);
+
+                            byte[] usernameinbytesenc = await StreamHelp.ReadExactlyAsync(stream, usernamelength);
+                            byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
+
+                            string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
+
+                            if (RegisterLogin.isFieldValid(username))
                             {
-                                case Registration.Register:
-                                    byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
-                                    if (!BitConverter.IsLittleEndian)
-                                        Array.Reverse(lengthbyte);
-                                    int length = BitConverter.ToInt32(lengthbyte, 0);
-
-                                    byte[] usernamelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
-                                    if (!BitConverter.IsLittleEndian)
-                                        Array.Reverse(usernamelengthbyte);
-                                    int usernamelength = BitConverter.ToInt32(usernamelengthbyte, 0);
-
-                                    byte[] usernameinbytesenc = await StreamHelp.ReadExactlyAsync(stream, usernamelength);
-                                    byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
-
-                                    string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
-                                    if (RegisterLogin.isFieldValid(username))
-                                    {
+                                switch ((Registration)databyte)
+                                {
+                                    case Registration.Register:
                                         if (JsonHandler.userExists(username))
                                             stream.WriteByte((byte)Registration.ErrorTaken);
                                         else
                                         {
                                             string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
+                                            if (RegisterLogin.isFieldValid(password))
+                                            {
+                                                JsonHandler.addUser(username, password);
+                                                stream.WriteByte((byte)Registration.RegisterSuccess);
+                                            }
+                                            else
+                                            {
+                                                stream.WriteByte((byte)Registration.ErrorInvalid);
+                                            }
                                         }
-                                    }
-                                    
-                                    
-                                    break;
+                                        break;
+
+                                    case Registration.Login:
+                                        if (JsonHandler.userExists(username))
+                                        {
+                                            if (JsonHandler.userLoggedIn(username))
+                                                stream.WriteByte((byte)Registration.ErrorLoggedIn);
+                                            else
+                                            {
+                                                string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
+                                                if (RegisterLogin.isFieldValid(password))
+                                                {
+                                                    if (JsonHandler.verifyLogin(username, password))
+                                                    {
+
+                                                    }
+                                                }
+                                            }
+                                        }
+                                            
+                                        break;
+
+                                }
+                            }
+                            else
+                            {
+                                stream.WriteByte((byte)Registration.ErrorInvalid);
                             }
                         }
                     }
