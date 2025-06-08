@@ -32,8 +32,12 @@ namespace YoavProject
 
         public static Dictionary<int, Player> playersUsingID = new Dictionary<int, Player>();
 
+        private GameBoard board;
+        private static WorldState state;
+
         public static int totalClients = 0;
         private static readonly object clientsLock = new object();
+        private static readonly object stateLock = new object();
 
         private string RSApublic;
         private string RSAprivate;
@@ -50,10 +54,23 @@ namespace YoavProject
             listener = new TcpListener(IPAddress.Any, StreamHelp.tcpPort);
             listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             listener.Start();
+            board = new GameBoard();
 
             (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
             Console.WriteLine(RSApublic);
             JsonHandler = new JsonHandler();
+            state = new WorldState();
+            state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.var1));
+
+            for (int i = 1; i < 8; i++)
+            {
+                Workstation a = new Workstation(new PointF(board.cols - i, board.rows - 1));
+                if (i % 3 == 0)
+                    a.type = Workstation.stationType.pasta;
+                //a.onInteract += printInteract;
+                state.addWorldInteractable(i, a);
+
+            }
 
             UDP.denyOthers();
             _ = Task.Run(acceptClientsAsync);
@@ -132,6 +149,13 @@ namespace YoavProject
                     playersUsingID.Add(clientId, new Player());
                     //copy playersusingid to currplayers
                 }
+                lock (stateLock)
+                {
+                    Console.WriteLine("Adding world data...");
+                    stateSyncList.Add((byte)state.getInteractableCount());
+                    stateSyncList.AddRange(state.getWorldState());
+                    Console.WriteLine("Finished Adding");
+                }
                 byte byteId = (byte)clientId;
 
                 //send new player joined to existing
@@ -139,18 +163,31 @@ namespace YoavProject
                 newPlayerBytes[0] = (byte)Data.NewPlayer;
                 Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
 
-
+                
                 foreach (TcpClient existingClient in clientSnapshot.Values)
                 {
                     Console.WriteLine("ahhhhh");
-                    await existingClient.GetStream().WriteAsync(newPlayerBytes, 0, newPlayerBytes.Length);
+                    byte[] encmsgtoothers = Encryption.encryptAES(newPlayerBytes, AESkeysUsingClients[existingClient]);
+                    await existingClient.GetStream().WriteAsync(encmsgtoothers, 0, encmsgtoothers.Length);
                 }
                 Console.WriteLine($"Client connected with ID {clientId}");
 
-
+                byte[] encid = Encryption.encryptAES(new byte[] { byteId }, AESkeysUsingClients[client]);
                 //send id and then the positions of other clients to new client
-                await stream.WriteAsync(new byte[] { byteId }, 0, 1);
-                await stream.WriteAsync(stateSyncList.ToArray(), 0, stateSyncList.Count);
+                byte[] encidlength = BitConverter.GetBytes(encid.Length);
+                if (!BitConverter.IsLittleEndian)
+                    Array.Reverse(encidlength);
+                await stream.WriteAsync(encidlength, 0, encidlength.Length);
+                await stream.WriteAsync(encid, 0, encid.Length);
+                Console.WriteLine("Sent id: " + byteId);
+
+                byte[] encstatesync = Encryption.encryptAES(stateSyncList.ToArray(), AESkeysUsingClients[client]);
+                byte[] encstatesynclength = BitConverter.GetBytes(encstatesync.Length);
+                if (!BitConverter.IsLittleEndian)
+                    Array.Reverse(encstatesynclength);
+                await stream.WriteAsync(encstatesynclength, 0, encstatesynclength.Length);
+                await stream.WriteAsync(encstatesync, 0, encstatesync.Length);
+                Console.WriteLine("Sent stae sync list");
             }
             catch (Exception ex) 
             {

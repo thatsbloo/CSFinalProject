@@ -116,6 +116,7 @@
       <DependentUpon>Server.cs</DependentUpon>
     </Compile>
     <Compile Include="Connection.cs" />
+    <Compile Include="WorldState.cs" />
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>

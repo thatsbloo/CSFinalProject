@@ -23,15 +23,18 @@ namespace YoavProject
         public static int tileSize { get; private set; }
 
         private HashSet<Keys> pressedKeys;
+        private HashSet<Keys> previousPressedKeys;
 
-        private List<InteractableObject> interactables;
-        private List<Costumer> costumers;
+        public WorldState state;
+        //private List<Costumer> costumers;
 
         public Dictionary<int, Player> onlinePlayers;
 
         private GameObject topWall;
 
-        private float playerSpeed = 3.5f; //in tiles
+        private float playerSpeed = 4.5f; //in tiles
+
+        private int highlightedID = -1;
 
 
 
@@ -54,31 +57,36 @@ namespace YoavProject
             Console.WriteLine(player.getBorders());
 
             pressedKeys = new HashSet<Keys>();
+            previousPressedKeys = new HashSet<Keys>();
 
-            interactables = new List<InteractableObject>();
-            costumers = new List<Costumer>();
+            state = new WorldState();
+            //costumers = new List<Costumer>();
 
             onlinePlayers = new Dictionary<int, Player>();
 
-            interactables.Add(new Table(new PointF(1, 5)));
-
-            for (int i = 0; i < 7; i++)
-            {
-                Workstation a = new Workstation(new PointF(cols - i, rows - 1));
-                if (i % 3 == 0)
-                    a.type = Workstation.stationType.pasta;
-                interactables.Add(a);
-                
-            }
+            
 
             
 
             tileSize = Math.Min(this.Width / cols, this.Height / rows);
         }
 
+        public bool printInteract()
+        {
+            Console.WriteLine("I hath been interacted with");
+            return true;
+        }
         public void Update()
         {
             #region proccess keys
+            var justPressedKeys = new HashSet<Keys>(pressedKeys);
+            justPressedKeys.ExceptWith(previousPressedKeys); // now only contains keys that are new this tick
+
+            // Update the snapshot for next tick
+            previousPressedKeys.Clear();
+            foreach (var key in pressedKeys)
+                previousPressedKeys.Add(key);
+
             (int, int) direction = (0, 0);
             if (pressedKeys.Contains(Keys.W))
             {
@@ -97,6 +105,16 @@ namespace YoavProject
                 direction.Item1 += 1;
             }
             movePlayer(direction);
+            if (justPressedKeys.Contains(Keys.E))
+            {
+                if (highlightedID != -1)
+                {
+                    if (state.interactWith(highlightedID))
+                    {
+                        player.addPlate();
+                    }
+                }
+            }
             #endregion
 
             this.Invalidate();
@@ -145,7 +163,7 @@ namespace YoavProject
 
                 if (playerRect.Right >= objRect.Left && playerRect.Left <= objRect.Right && playerRect.Bottom >= objRect.Top && playerRect.Top <= objRect.Bottom)
                 {
-                    Console.WriteLine("amor de mis amores");
+                    //Console.WriteLine("amor de mis amores");
 
                     // Calculate overlap on each side
                     float overlapLeft = playerRect.Right - objRect.Left;
@@ -179,7 +197,7 @@ namespace YoavProject
 
             void handle_interactables()
             {
-                foreach (InteractableObject obj in interactables)
+                foreach (InteractableObject obj in state.getInteractableObjects())
                 {
                     //Console.WriteLine(obj.getBorders());
                     if (obj == null) continue;
@@ -190,10 +208,39 @@ namespace YoavProject
                 }
 
             }
+
+            void handle_highlighting()
+            {
+                float closestDist = float.MaxValue;
+                state.setHighlight(false, highlightedID);
+                highlightedID = -1;
+                //InteractableObject closestObj = null;
+
+                SizeF screenSize = player.calcHitboxSizeOnScreen();
+                PointF screenPos = player.calcPositionOnScreen(pos);
+                RectangleF playerRect = new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+                //find closest object and highlight
+                float tiles = InteractableObject.interactionRange * tileSize;
+                foreach (var pair in state.getObjectsDictionary())
+                {
+                    RectangleF objRect = pair.Value.getCollisionArea();
+
+                    float dist = rectDistance(playerRect, objRect);
+                    //Console.WriteLine("min: " + closestDist);
+                    if (dist <= tiles && dist < closestDist)
+                    {
+                        //Console.WriteLine(dist);
+                        closestDist = dist;
+                        highlightedID = pair.Key;
+                    }
+                }
+                state.setHighlight(true, highlightedID);
+            }
             #endregion
 
             handle_borders(wallHeight, rows, 0, cols);
             handle_interactables();
+
 
             if (Game.connected)
             {
@@ -201,15 +248,23 @@ namespace YoavProject
                 UDP.sendToServer(messageToSend);
             }
             player.position = pos;
+
+            handle_highlighting();
         }
 
+        private float rectDistance(RectangleF a, RectangleF b)
+        {
+            float dx = Math.Max(0, Math.Max(b.Left - a.Right, a.Left - b.Right));
+            float dy = Math.Max(0, Math.Max(b.Top - a.Bottom, a.Top - b.Bottom));
+            return (float)Math.Sqrt(dx * dx + dy * dy);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             
             base.OnPaint(e);
 
-            // Set graphics settings to prevent blurriness
+            // set settings to stop blur
             e.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
 
@@ -217,7 +272,7 @@ namespace YoavProject
 
             Random rnd = new Random();
 
-            foreach (InteractableObject obj in interactables)
+            foreach (InteractableObject obj in state.getInteractableObjects())
             {
                 if (obj == null) continue;
                 obj.draw(e.Graphics);

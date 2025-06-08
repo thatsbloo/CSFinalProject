@@ -36,6 +36,7 @@ namespace YoavProject
         public static bool signup { get; private set; }
 
         private static readonly object playersLock = new object();
+        private static readonly object stateLock = new object();
 
         private string RSApublicKey;
 
@@ -114,35 +115,48 @@ namespace YoavProject
         {
             NetworkStream stream = tcpClient.GetStream();
             // read byte for client id
-            byte[] buffer = new byte[1];
-            await stream.ReadAsync(buffer, 0, 1);
-            clientId = (int)buffer[0];
+            byte[] bufferlength = await StreamHelp.ReadExactlyAsync(stream, 4);
+            if (!BitConverter.IsLittleEndian)
+                Array.Reverse(bufferlength);
+            int length = BitConverter.ToInt32(bufferlength, 0);
+            byte[] bufferenc = new byte[2048];
+            bufferenc = await StreamHelp.ReadExactlyAsync(stream, length);
+            byte[] decrypted = Encryption.decryptAES(bufferenc, AESkey);
+            clientId = (int)decrypted[0];
+            Console.WriteLine("id: " + clientId);
             connected = true;
 
-            byte[] headerBuffer = new byte[2];
-            await stream.ReadAsync(headerBuffer, 0, 2);
+            bufferlength = await StreamHelp.ReadExactlyAsync(stream, 4);
+            if (!BitConverter.IsLittleEndian)
+                Array.Reverse(bufferlength);
+            length = BitConverter.ToInt32(bufferlength, 0);
+            Console.WriteLine("length: " + length);
+            bufferenc = await StreamHelp.ReadExactlyAsync(stream, length);
+            byte[] buffer = Encryption.decryptAES(bufferenc, AESkey);
+            
 
-            byte packetType = headerBuffer[0];
-            int playerCount = headerBuffer[1];
+            byte packetType = buffer[0];
 
+            Console.WriteLine(packetType);
             if (packetType == (byte)Data.CompleteStateSync) // state sync
             {
-                byte[] playersBuffer = new byte[playerCount * 10]; // each player: 1 byte id + + pos 4 float X + 4 float Y = 10 bytes
-                await stream.ReadAsync(playersBuffer, 0, playersBuffer.Length);
+                int playerCount = buffer[1];
+
+                //byte[] playersBuffer = Array.Copy(); // each player: 1 byte data.position + 1 byte id + + pos 4 float X + 4 float Y = 10 bytes playerCount * 10
 
                 for (int i = 0; i < playerCount; i++)
                 {
                     int offset = i * 10;
-                    byte id = (byte)playersBuffer[offset];
+                    byte id = (byte)buffer[offset+2];
 
                     if (!BitConverter.IsLittleEndian)
                     {
-                        Array.Reverse(playersBuffer, offset + 2, 4);
-                        Array.Reverse(playersBuffer, offset + 6, 4);
+                        Array.Reverse(buffer, offset + 4, 4);
+                        Array.Reverse(buffer, offset + 8, 4);
                     }
 
-                    float x = BitConverter.ToSingle(playersBuffer, offset + 2);
-                    float y = BitConverter.ToSingle(playersBuffer, offset + 6);
+                    float x = BitConverter.ToSingle(buffer, offset + 4);
+                    float y = BitConverter.ToSingle(buffer, offset + 8);
 
                     Player p = new Player();
                     PointF pos = new PointF(x, y);
@@ -153,7 +167,74 @@ namespace YoavProject
                         board.onlinePlayers.Add(id, p);
                         online_players.Add(p);
                     }
+                    Console.WriteLine("Finished Player sync");
+                }
 
+
+                int interactablecount = buffer[2 + playerCount * 10];
+                Console.WriteLine(interactablecount);
+                int stateoffset = 0;
+                for (int i = 0; i < interactablecount; i++)
+                {
+                    int id = (int)buffer[3 + playerCount * 10 + stateoffset];
+                    byte type = buffer[4 + playerCount * 10 + stateoffset];
+                    Console.WriteLine($"type: {type} id: {id}");
+                    switch ((InteractableObject.Types)type)
+                    {
+                        case InteractableObject.Types.Table:
+                            byte[] tbytes = new byte[20];
+                            Array.Copy(buffer, 5 + playerCount * 10 + stateoffset, tbytes, 0, tbytes.Length);
+                            stateoffset += 2 + tbytes.Length;
+                            Table.Variation var = (Table.Variation)tbytes[0];
+                            int chairs = (int)tbytes[1];
+                            int takenChairs = (int)tbytes[2];
+                            int platesOnTable = (int)tbytes[3];
+                            byte[] tposx = new byte[4];
+                            byte[] tposy = new byte[4];
+                            byte[] tsizew = new byte[4];
+                            byte[] tsizeh = new byte[4];
+                            Array.Copy(tbytes, 4, tposx, 0, 4);
+                            Array.Copy(tbytes, 8, tposy, 0, 4);
+                            Array.Copy(tbytes, 12, tsizew, 0, 4);
+                            Array.Copy(tbytes, 16, tsizeh, 0, 4);
+                            if (!BitConverter.IsLittleEndian)
+                            {
+                                Array.Reverse(tposx);
+                                Array.Reverse(tposy);
+                                Array.Reverse(tsizew);
+                                Array.Reverse(tsizeh);
+                            }
+
+                            PointF tpos = new PointF(BitConverter.ToSingle(tposx, 0), BitConverter.ToSingle(tposy, 0));
+                            SizeF tsize = new SizeF(BitConverter.ToSingle(tsizew, 0), BitConverter.ToSingle(tsizeh, 0));
+
+                            lock (stateLock)
+                                board.state.addWorldInteractable(id, new Table(tpos, tsize, chairs, takenChairs, platesOnTable, var));
+                            break;
+                        case InteractableObject.Types.Workstation:
+                            byte[] wbytes = new byte[9];
+                            Array.Copy(buffer, 5 + playerCount * 10 + stateoffset, wbytes, 0, wbytes.Length);
+                            stateoffset += 2 + wbytes.Length;
+                            Workstation.stationType stationType = (Workstation.stationType)wbytes[0];
+                            byte[] wposx = new byte[4];
+                            byte[] wposy = new byte[4];
+                            byte[] wsizew = new byte[4];
+                            byte[] wsizeh = new byte[4];
+                            Array.Copy(wbytes, 1, wposx, 0, 4);
+                            Array.Copy(wbytes, 5, wposy, 0, 4);
+                            if (!BitConverter.IsLittleEndian)
+                            {
+                                Array.Reverse(wposx);
+                                Array.Reverse(wposy);
+                            }
+
+                            PointF wpos = new PointF(BitConverter.ToSingle(wposx, 0), BitConverter.ToSingle(wposy, 0));
+                            lock (stateLock)
+                                board.state.addWorldInteractable(id, new Workstation(wpos, stationType));
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
 
@@ -204,7 +285,7 @@ namespace YoavProject
                                 board.Show();
                                 signup = false;
                             });
-                            
+                            await Task.Run(joinTheGameWorld);
                             break;
                         default:
                             break;
