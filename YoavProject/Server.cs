@@ -1,17 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices.ComTypes;
-using System.Security.AccessControl;
-using System.Security.Cryptography;
+using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -332,9 +325,12 @@ namespace YoavProject
 
                     while (serverRunning && client.Connected)
                     {
-                        int databyte = stream.ReadByte();
+                        byte[] databytelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                        if (!BitConverter.IsLittleEndian)
+                            Array.Reverse(databytelengthbyte);
+                        byte[] databytebytes = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(databytelengthbyte, 0)), AESkeysUsingClients[client]);
 
-                        if (databyte == -1)
+                        if (databytebytes[0] == -1)
                         {
                             Console.WriteLine("Disconnected Client[TCP].");
                             break;
@@ -364,25 +360,26 @@ namespace YoavProject
 
                             string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
                             Console.WriteLine(username);
+                            byte[] reply = new byte[1];
                             if (RegisterLogin.isFieldValid(username))
                             {
-                                switch ((Registration)databyte)
+                                switch ((Registration)databytebytes[0])
                                 {
                                     case Registration.Register:
                                         Console.WriteLine("register");
                                         if (JsonHandler.userExists(username))
-                                            stream.WriteByte((byte)Registration.ErrorTaken);
+                                            reply[0] = (byte)Registration.ErrorTaken;
                                         else
                                         {
                                             string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
                                             if (RegisterLogin.isFieldValid(password))
                                             {
                                                 JsonHandler.addUser(username, password);
-                                                stream.WriteByte((byte)Registration.RegisterSuccess);
+                                                reply[0] = (byte)Registration.RegisterSuccess;
                                             }
                                             else
                                             {
-                                                stream.WriteByte((byte)Registration.ErrorInvalid);
+                                                reply[0] = (byte)Registration.ErrorInvalid;
                                             }
                                         }
                                         break;
@@ -399,24 +396,24 @@ namespace YoavProject
                                                 {
                                                     if (JsonHandler.verifyLogin(username, password))
                                                     {
-                                                        stream.WriteByte((byte)Registration.LoginSuccess);
+                                                        reply[0] = (byte)Registration.LoginSuccess;
                                                         isSignedIn = true;
                                                         await Task.Run(() => connectClientToGame(client));
                                                     }
                                                     else
                                                     {
-                                                        stream.WriteByte((byte)Registration.ErrorWrong);
+                                                        reply[0] = (byte)Registration.ErrorWrong;
                                                     }
                                                 }
                                                 else
                                                 {
-                                                    stream.WriteByte((byte)Registration.ErrorInvalid);
+                                                    reply[0] = (byte)Registration.ErrorInvalid;
                                                 }
                                             }
                                         }
                                         else
                                         {
-                                            stream.WriteByte((byte)Registration.ErrorWrong);
+                                            reply[0] = (byte)Registration.ErrorWrong;
                                         }
 
                                         break;
@@ -425,12 +422,57 @@ namespace YoavProject
                             }
                             else
                             {
-                                stream.WriteByte((byte)Registration.ErrorInvalid);
+                                reply[0] = (byte)Registration.ErrorInvalid;
                             }
+                            Console.WriteLine(reply[0]);
+                            byte[] encreply = Encryption.encryptAES(reply, AESkeysUsingClients[client]);
+                            byte[] encreplylength = BitConverter.GetBytes(encreply.Length);
+                            if (!BitConverter.IsLittleEndian)
+                            {
+                                Array.Reverse(encreplylength);
+                            }
+
+                            await stream.WriteAsync(encreplylength, 0, encreplylength.Length);
+                            await stream.WriteAsync(encreply, 0, encreply.Length);
                         }
                         else
                         {
-
+                            switch ((Data)databytebytes[0])
+                            {
+                                case Data.objInteract:
+                                    buffer = await StreamHelp.ReadExactlyAsync(stream, 3);
+                                    if (buffer[0] == (byte)InteractionTypes.pickupPlate)
+                                    {
+                                        int clientId = (int)buffer[1];
+                                        int interactableId = (int)buffer[2];
+                                        byte[] successinteraction = new byte[2];
+                                        bool flag = false;
+                                        lock (stateLock)
+                                        {
+                                            if (state.interactWith(interactableId))
+                                            {
+                                                
+                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[1] = (byte)interactableId;
+                                                flag = true;
+                                            }
+                                        }
+                                        if (flag)
+                                        {
+                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
+                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
+                                            if (!BitConverter.IsLittleEndian)
+                                            {
+                                                Array.Reverse(enclength);
+                                            }
+                                            await stream.WriteAsync(enclength, 0, enclength.Length);
+                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                        }
+                                    }
+                                    break;
+                                default:
+                                    break;
+                            }
                         }
                     }
                 }

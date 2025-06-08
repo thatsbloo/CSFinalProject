@@ -12,8 +12,9 @@ namespace YoavProject
     enum Messages { ServerExists, DenyServerReq, ConnectingReq}
 
     enum Registration: byte { Register = 1, Login = 2, RegisterSuccess = 3, LoginSuccess = 4, ErrorTaken = 5, ErrorWrong = 6, ErrorInvalid = 7, ErrorLoggedIn = 8 }
-    enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, worldStateSync = 5 }
-    
+    public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, worldStateSync = 5, objInteract = 6, interactionStateSync = 7, objInteractSuccess = 8 } //objinteract
+    enum InteractionTypes: byte { pickupPlate = 1, putdownPlate = 2, enterGame = 3, leaveGame = 4 }
+
     
     static class UDP
     {

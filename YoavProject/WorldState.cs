@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace YoavProject
 {
@@ -53,6 +51,15 @@ namespace YoavProject
             if (interactables.ContainsKey(id))
             {
                 return interactables[id].interact();
+            }
+            return false;
+        }
+
+        public bool canInteractWith(int id)
+        {
+            if (interactables.ContainsKey(id))
+            {
+                return true;
             }
             return false;
         }

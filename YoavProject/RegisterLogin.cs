@@ -1,11 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace YoavProject
@@ -55,12 +50,24 @@ namespace YoavProject
 
         public void displayErrorMessage(string message)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<string>(displayErrorMessage), message);
+                return;
+            }
+
             info.Text = message;
             info.ForeColor = Color.Red;
         }
 
         public void displaySuccessMessage(string message)
         {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<string>(displaySuccessMessage), message);
+                return;
+            }
+
             info.Text = message;
             info.ForeColor = Color.Lime;
         }

@@ -1,16 +1,9 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices.ComTypes;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -40,7 +33,7 @@ namespace YoavProject
 
         private string RSApublicKey;
 
-        private string AESkey;
+        private static string AESkey;
 
         public Game()
         {
@@ -68,7 +61,7 @@ namespace YoavProject
 
         }
 
-        private TcpClient tcpClient;
+        private static TcpClient tcpClient;
         public static int clientId { get; private set; }
 
         
@@ -251,15 +244,18 @@ namespace YoavProject
             {
                 while (signup)
                 {
-                    int msgtype = stream.ReadByte();
+                    byte[] msgtypelength = await StreamHelp.ReadExactlyAsync(stream, 4);
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(msgtypelength);
+                    byte[] msgtype = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(msgtypelength, 0)), AESkey);
 
-                    if (msgtype == -1)
+                    if (msgtype[0] == -1)
                     {
                         Console.WriteLine("Disconnected [TCP].");
                         break;
                     }
 
-                    switch ((Registration)msgtype)
+                    switch ((Registration)msgtype[0])
                     {
                         case Registration.ErrorTaken:
                             login.displayErrorMessage("Username already taken!");
@@ -268,7 +264,7 @@ namespace YoavProject
                             login.displayErrorMessage("Incorrect username or password!");
                             break;
                         case Registration.ErrorInvalid:
-                            login.displayErrorMessage("Invalid username!");
+                            login.displayErrorMessage("Invalid username or password!");
                             break;
                         case Registration.ErrorLoggedIn:
                             login.displayErrorMessage("This user is already logged in!");
@@ -304,8 +300,10 @@ namespace YoavProject
             }
             Stream stream = tcpClient.GetStream();
             List<byte> data = new List<byte>();
+            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)Registration.Login }, AESkey);
+            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
 
-            data.Add((byte)Registration.Login);
+            
             string username = login.getUsername();
             string pass = login.getPassword();
             byte[] encryptedUsername = Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey);
@@ -317,10 +315,12 @@ namespace YoavProject
 
             if (!BitConverter.IsLittleEndian)
             {
+                Array.Reverse(enctypelength);
                 Array.Reverse(lengthBytes);
                 Array.Reverse(usernameLengthBytes);
             }
-
+            data.AddRange(enctypelength);
+            data.AddRange(enctype);
             data.AddRange(lengthBytes);
             data.AddRange(usernameLengthBytes);
             data.AddRange(encryptedUsername);
@@ -338,7 +338,9 @@ namespace YoavProject
             Stream stream = tcpClient.GetStream();
             List<byte> data = new List<byte>();
 
-            data.Add((byte)Registration.Register);
+            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)Registration.Register }, AESkey);
+            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
+
             string username = login.getUsername();
             string pass = login.getPassword();
 
@@ -351,10 +353,13 @@ namespace YoavProject
 
             if (!BitConverter.IsLittleEndian)
             {
+                Array.Reverse(enctypelength);
                 Array.Reverse(lengthBytes);
                 Array.Reverse(usernameLengthBytes);
             }
 
+            data.AddRange(enctypelength);
+            data.AddRange(enctype);
             data.AddRange(lengthBytes);
             data.AddRange(usernameLengthBytes);
             data.AddRange(encryptedUsername);
@@ -436,18 +441,21 @@ namespace YoavProject
             {
                 while(connected)
                 {
-                    int datatype = stream.ReadByte();
+                    byte[] databytelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                    if (!BitConverter.IsLittleEndian)
+                        Array.Reverse(databytelengthbyte);
+                    byte[] databytebytes = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(databytelengthbyte, 0)), AESkey);
 
-                    if (datatype == -1)
+                    if (databytebytes[0] == -1)
                     {
                         Console.WriteLine("Disconnected [TCP].");
                         break;
                     }
-
-                    switch((Data)datatype)
+                    byte[] res;
+                    switch((Data)databytebytes[0])
                     {
                         case Data.NewPlayer:
-                            byte[] res = await StreamHelp.ReadExactlyAsync(stream, 9);
+                            res = await StreamHelp.ReadExactlyAsync(stream, 9);
 
                             byte playerId = res[0];
                             float posX = BitConverter.ToSingle(res, 1);
@@ -463,6 +471,16 @@ namespace YoavProject
                                 board.onlinePlayers.Add(playerId, p);
                                 online_players.Add(p);
                             }
+                            break;
+                        case Data.objInteractSuccess:
+                            res = await StreamHelp.ReadExactlyAsync(stream, 2);
+                            if (res[0] == (byte)InteractionTypes.pickupPlate)
+                            {
+                                board.player.addPlate();
+                                int interactableId = (int)res[1];
+                                board.state.interactWith(interactableId);
+                            }
+
                             break;
                         default:
                             break;
@@ -488,6 +506,25 @@ namespace YoavProject
         private void Game_FormClosing(object sender, FormClosingEventArgs e)
         {
             tcpClient.Close();
+        }
+
+        public static async void sendMessage(byte[] message, Data datatype)
+        {
+            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)datatype }, AESkey);
+            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
+
+
+            byte[] encmessage = Encryption.encryptAES(message, AESkey);
+            byte[] enclength = BitConverter.GetBytes(encmessage.Length);
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(enctypelength);
+                Array.Reverse(enclength);
+            }
+            await tcpClient.GetStream().WriteAsync(enctypelength, 0, enctypelength.Length);
+            await tcpClient.GetStream().WriteAsync(enctype, 0, enctype.Length);
+            await tcpClient.GetStream().WriteAsync(enclength, 0, enclength.Length);
+            await tcpClient.GetStream().WriteAsync(encmessage, 0, encmessage.Length);
         }
     }
 }
