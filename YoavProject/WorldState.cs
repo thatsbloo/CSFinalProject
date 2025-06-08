@@ -33,6 +33,16 @@ namespace YoavProject
             return result.ToArray();
         }
 
+        public void clearWorldMap()
+        {
+            interactables.Clear();
+        }
+
+        public void updateInteractable(int id, InteractableObject newVersion)
+        {
+            interactables[id] = newVersion; 
+        }
+
         public int getInteractableCount()
         {
             return interactables.Count; 
