@@ -281,7 +281,7 @@ namespace YoavProject
                                 board.Show();
                                 signup = false;
                             });
-                            await Task.Run(joinTheGameWorld);
+                            await joinTheGameWorld();
                             break;
                         default:
                             break;

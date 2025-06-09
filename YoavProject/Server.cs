@@ -35,6 +35,9 @@ namespace YoavProject
         private string RSApublic;
         private string RSAprivate;
 
+        private bool inGame;
+        private HashSet<int> IDsInGame; 
+
         private JsonHandler JsonHandler;
         public Server()
         {
@@ -52,8 +55,9 @@ namespace YoavProject
             (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
             Console.WriteLine(RSApublic);
             JsonHandler = new JsonHandler();
+            IDsInGame = new HashSet<int>();
             state = new WorldState();
-            state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.var1));
+            state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.lobby));
 
             for (int i = 1; i < 8; i++)
             {
@@ -440,7 +444,7 @@ namespace YoavProject
                             switch ((Data)databytebytes[0])
                             {
                                 case Data.objInteract:
-                                    buffer = await StreamHelp.ReadExactlyAsync(stream, 3);
+                                    buffer = await StreamHelp.ReadExactlyAsync(stream, 3); //FIX HERE
                                     if (buffer[0] == (byte)InteractionTypes.pickupPlate)
                                     {
                                         int clientId = (int)buffer[1];
@@ -452,6 +456,90 @@ namespace YoavProject
                                             if (state.interactWith(interactableId))
                                             {
                                                 
+                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[1] = (byte)interactableId;
+                                                flag = true;
+                                            }
+                                        }
+                                        if (flag)
+                                        {
+                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
+                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
+                                            if (!BitConverter.IsLittleEndian)
+                                            {
+                                                Array.Reverse(enclength);
+                                            }
+                                            await stream.WriteAsync(enclength, 0, enclength.Length);
+                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                        }
+                                    } 
+                                    else if (buffer[0] == (byte)InteractionTypes.putdownPlate)
+                                    {
+                                        int clientId = (int)buffer[1];
+                                        int interactableId = (int)buffer[2];
+                                        byte[] successinteraction = new byte[2];
+                                        bool flag = false;
+                                        lock (stateLock)
+                                        {
+                                            if (state.interactWith(interactableId))
+                                            {
+
+                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[1] = (byte)interactableId;
+                                                flag = true;
+                                            }
+                                        }
+                                        if (flag)
+                                        {
+                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
+                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
+                                            if (!BitConverter.IsLittleEndian)
+                                            {
+                                                Array.Reverse(enclength);
+                                            }
+                                            await stream.WriteAsync(enclength, 0, enclength.Length);
+                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                        }
+                                    }
+                                    else if (buffer[0] == (byte)InteractionTypes.enterGame)
+                                    {
+                                        int clientId = (int)buffer[1];
+                                        int interactableId = (int)buffer[2];
+                                        byte[] successinteraction = new byte[2];
+                                        bool flag = false;
+                                        lock (stateLock)
+                                        {
+                                            if (state.interactWith(interactableId))
+                                            {
+                                                IDsInGame.Add(clientId);
+                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[1] = (byte)interactableId;
+                                                flag = true;
+                                            }
+                                        }
+                                        if (flag)
+                                        {
+                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
+                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
+                                            if (!BitConverter.IsLittleEndian)
+                                            {
+                                                Array.Reverse(enclength);
+                                            }
+                                            await stream.WriteAsync(enclength, 0, enclength.Length);
+                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                        }
+                                    }
+                                    else if (buffer[0] == (byte)InteractionTypes.leaveGame)
+                                    {
+                                        int clientId = (int)buffer[1];
+                                        int interactableId = (int)buffer[2];
+                                        byte[] successinteraction = new byte[2];
+                                        bool flag = false;
+                                        lock (stateLock)
+                                        {
+                                            if (state.interactWith(interactableId))
+                                            {
+                                                IDsInGame.Remove(clientId);
                                                 successinteraction[0] = (byte)Data.objInteractSuccess;
                                                 successinteraction[1] = (byte)interactableId;
                                                 flag = true;

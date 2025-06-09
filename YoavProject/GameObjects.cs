@@ -153,7 +153,7 @@ namespace YoavProject
 
     public class Table : InteractableObject
     {
-        public enum Variation: byte { nonGame = 0, var1 = 1, var2 = 2, var3 = 3 }
+        public enum Variation: byte { lobby = 0, var1 = 1, var2 = 2, var3 = 3 }
 
         public int chairs;
         public int takenChairs;
@@ -161,7 +161,7 @@ namespace YoavProject
         Variation var;
         public Table() : this(new PointF(0f, 0f)) { }
 
-        public Table(PointF position, SizeF? size = null, int chairs = 4, int takenChairs = 0, int plates = 3, Variation var = Variation.nonGame)
+        public Table(PointF position, SizeF? size = null, int chairs = 4, int takenChairs = 0, int plates = 3, Variation var = Variation.lobby)
         {
             this.size = size ?? new SizeF(3, 2);
             this.hitboxSize = this.size;
@@ -182,15 +182,26 @@ namespace YoavProject
 
 
             g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
-            g.DrawString(0 + "/" + chairs + " taken", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
-            g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y));
+            if (this.var == Variation.lobby)
+                g.DrawString(0 + "/" + chairs + " taken", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
+            else 
+                g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
 
             base.draw(g);
         }
 
         private bool interactWithMe()
         {
-            if (this.var != Variation.nonGame)
+            if (this.var == Variation.lobby)
+            {
+                if (this.chairs > this.takenChairs)
+                {
+                    this.takenChairs++;
+                    return true;
+                }
+                return false;
+            }
+            else
             {
                 if (this.platesOnTable > 0)
                 {
@@ -201,7 +212,6 @@ namespace YoavProject
                 Console.WriteLine("New plate count: " + platesOnTable);
                 return false;
             }
-            return false;
         }
 
         public override byte[] getByteData()
