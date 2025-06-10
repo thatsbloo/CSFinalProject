@@ -244,10 +244,7 @@ namespace YoavProject
             {
                 while (signup)
                 {
-                    byte[] msgtypelength = await StreamHelp.ReadExactlyAsync(stream, 4);
-                    if (!BitConverter.IsLittleEndian)
-                        Array.Reverse(msgtypelength);
-                    byte[] msgtype = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(msgtypelength, 0)), AESkey);
+                    byte[] msgtype = await StreamHelp.ReadEncrypted(stream, AESkey);
 
                     if (msgtype[0] == -1)
                     {
@@ -300,33 +297,23 @@ namespace YoavProject
             }
             Stream stream = tcpClient.GetStream();
             List<byte> data = new List<byte>();
-            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)Registration.Login }, AESkey);
-            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
+            byte[] msgtype = new byte[] { (byte)Registration.Login };
+            await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
 
             
             string username = login.getUsername();
             string pass = login.getPassword();
-            byte[] encryptedUsername = Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey);
-            byte[] encryptedPassword = Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey);
 
-            int totalLength = encryptedUsername.Length + encryptedPassword.Length;
-            byte[] lengthBytes = BitConverter.GetBytes(totalLength);
-            byte[] usernameLengthBytes = BitConverter.GetBytes(encryptedUsername.Length);
-
+            byte[] usernameLengthBytes = BitConverter.GetBytes(username.Length);
             if (!BitConverter.IsLittleEndian)
             {
-                Array.Reverse(enctypelength);
-                Array.Reverse(lengthBytes);
                 Array.Reverse(usernameLengthBytes);
             }
-            data.AddRange(enctypelength);
-            data.AddRange(enctype);
-            data.AddRange(lengthBytes);
             data.AddRange(usernameLengthBytes);
-            data.AddRange(encryptedUsername);
-            data.AddRange(encryptedPassword);
+            data.AddRange(Encoding.UTF8.GetBytes(username));
+            data.AddRange(Encoding.UTF8.GetBytes(pass));
 
-            await stream.WriteAsync(data.ToArray(), 0, data.Count);
+            await StreamHelp.WriteEncrypted(stream, data.ToArray(), AESkey);
         }
 
         private async void handleRegister()
@@ -336,36 +323,24 @@ namespace YoavProject
                 login.displayErrorMessage("Username and Password must only include English letters and numbers!");
             }
             Stream stream = tcpClient.GetStream();
-            List<byte> data = new List<byte>();
 
-            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)Registration.Register }, AESkey);
-            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
+            byte[] msgtype = new byte[] { (byte)Registration.Login };
+            await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
+
 
             string username = login.getUsername();
             string pass = login.getPassword();
 
-            byte[] encryptedUsername = Encryption.encryptAES(Encoding.UTF8.GetBytes(username), AESkey);
-            byte[] encryptedPassword = Encryption.encryptAES(Encoding.UTF8.GetBytes(pass), AESkey);
-
-            int totalLength = encryptedUsername.Length + encryptedPassword.Length;
-            byte[] lengthBytes = BitConverter.GetBytes(totalLength);
-            byte[] usernameLengthBytes = BitConverter.GetBytes(encryptedUsername.Length);
-
+            byte[] usernameLengthBytes = BitConverter.GetBytes(username.Length);
             if (!BitConverter.IsLittleEndian)
             {
-                Array.Reverse(enctypelength);
-                Array.Reverse(lengthBytes);
                 Array.Reverse(usernameLengthBytes);
             }
-
-            data.AddRange(enctypelength);
-            data.AddRange(enctype);
-            data.AddRange(lengthBytes);
             data.AddRange(usernameLengthBytes);
-            data.AddRange(encryptedUsername);
-            data.AddRange(encryptedPassword);
+            data.AddRange(Encoding.UTF8.GetBytes(username));
+            data.AddRange(Encoding.UTF8.GetBytes(pass));
 
-            await stream.WriteAsync(data.ToArray(), 0, data.Count);
+            await StreamHelp.WriteEncrypted(stream, data.ToArray(), AESkey);
         }
 
         private async Task listenForUdpUpdatesAsync()

@@ -164,26 +164,14 @@ namespace YoavProject
                 foreach (TcpClient existingClient in clientSnapshot.Values)
                 {
                     Console.WriteLine("ahhhhh");
-                    byte[] encmsgtoothers = Encryption.encryptAES(newPlayerBytes, AESkeysUsingClients[existingClient]);
-                    await existingClient.GetStream().WriteAsync(encmsgtoothers, 0, encmsgtoothers.Length);
+                    await StreamHelp.WriteEncrypted(stream, newPlayerBytes, AESkeysUsingClients[client]);
                 }
                 Console.WriteLine($"Client connected with ID {clientId}");
 
-                byte[] encid = Encryption.encryptAES(new byte[] { byteId }, AESkeysUsingClients[client]);
-                //send id and then the positions of other clients to new client
-                byte[] encidlength = BitConverter.GetBytes(encid.Length);
-                if (!BitConverter.IsLittleEndian)
-                    Array.Reverse(encidlength);
-                await stream.WriteAsync(encidlength, 0, encidlength.Length);
-                await stream.WriteAsync(encid, 0, encid.Length);
+                await StreamHelp.WriteEncrypted(stream, new byte[] { byteId }, AESkeysUsingClients[client]);
                 Console.WriteLine("Sent id: " + byteId);
 
-                byte[] encstatesync = Encryption.encryptAES(stateSyncList.ToArray(), AESkeysUsingClients[client]);
-                byte[] encstatesynclength = BitConverter.GetBytes(encstatesync.Length);
-                if (!BitConverter.IsLittleEndian)
-                    Array.Reverse(encstatesynclength);
-                await stream.WriteAsync(encstatesynclength, 0, encstatesynclength.Length);
-                await stream.WriteAsync(encstatesync, 0, encstatesync.Length);
+                await StreamHelp.WriteEncrypted(stream, stateSyncList.ToArray(), AESkeysUsingClients[client]);
                 Console.WriteLine("Sent stae sync list");
             }
             catch (Exception ex) 
@@ -329,41 +317,27 @@ namespace YoavProject
 
                     while (serverRunning && client.Connected)
                     {
-                        byte[] databytelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
-                        if (!BitConverter.IsLittleEndian)
-                            Array.Reverse(databytelengthbyte);
-                        byte[] databytebytes = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(databytelengthbyte, 0)), AESkeysUsingClients[client]);
-
+                        byte[] databytebytes = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]);
+                        
                         if (databytebytes[0] == -1)
                         {
                             Console.WriteLine("Disconnected Client[TCP].");
                             break;
                         }
-
+                        #region signin part
                         if (!isSignedIn)
                         {
-                            Console.WriteLine("reading length of everything");
-                            byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+                            byte[] registrationbytes = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]);
+                            byte[] usernamelengthbytes = new byte[4];
+                            Array.Copy(registrationbytes, 0, usernamelengthbytes, 0, 4);
                             if (!BitConverter.IsLittleEndian)
-                                Array.Reverse(lengthbyte);
-                            Console.WriteLine("converting length to int32");
-                            int length = BitConverter.ToInt32(lengthbyte, 0);
-                            Console.WriteLine(length);
+                                Array.Reverse(usernamelengthbytes);
 
-                            Console.WriteLine("reading length of username");
-                            byte[] usernamelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
-                            if (!BitConverter.IsLittleEndian)
-                                Array.Reverse(usernamelengthbyte);
-                            Console.WriteLine("converting length to int32");
-                            int usernamelength = BitConverter.ToInt32(usernamelengthbyte, 0);
-                            Console.WriteLine(usernamelength);
-
-                            byte[] usernameinbytesenc = await StreamHelp.ReadExactlyAsync(stream, usernamelength);
-                            byte[] passwordinbytesenc = await StreamHelp.ReadExactlyAsync(stream, length - usernamelength);
-                            Console.WriteLine("read username and password");
-
-                            string username = Encoding.UTF8.GetString(Encryption.decryptAES(usernameinbytesenc, AESkeysUsingClients[client]));
+                            int usernamelength = BitConverter.ToInt32(usernamelengthbytes, 0);
+                            string username = Encoding.UTF8.GetString(registrationbytes, 4, usernamelength);
                             Console.WriteLine(username);
+                            string password = Encoding.UTF8.GetString(registrationbytes, 4 + usernamelength, registrationbytes.Length - usernamelength - 4);
+
                             byte[] reply = new byte[1];
                             if (RegisterLogin.isFieldValid(username))
                             {
@@ -375,7 +349,6 @@ namespace YoavProject
                                             reply[0] = (byte)Registration.ErrorTaken;
                                         else
                                         {
-                                            string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
                                             if (RegisterLogin.isFieldValid(password))
                                             {
                                                 JsonHandler.addUser(username, password);
@@ -395,7 +368,6 @@ namespace YoavProject
                                                 stream.WriteByte((byte)Registration.ErrorLoggedIn);
                                             else
                                             {
-                                                string password = Encoding.UTF8.GetString(Encryption.decryptAES(passwordinbytesenc, AESkeysUsingClients[client]));
                                                 if (RegisterLogin.isFieldValid(password))
                                                 {
                                                     if (JsonHandler.verifyLogin(username, password))
@@ -429,22 +401,15 @@ namespace YoavProject
                                 reply[0] = (byte)Registration.ErrorInvalid;
                             }
                             Console.WriteLine(reply[0]);
-                            byte[] encreply = Encryption.encryptAES(reply, AESkeysUsingClients[client]);
-                            byte[] encreplylength = BitConverter.GetBytes(encreply.Length);
-                            if (!BitConverter.IsLittleEndian)
-                            {
-                                Array.Reverse(encreplylength);
-                            }
-
-                            await stream.WriteAsync(encreplylength, 0, encreplylength.Length);
-                            await stream.WriteAsync(encreply, 0, encreply.Length);
+                            await StreamHelp.WriteEncrypted(stream, reply, AESkeysUsingClients[client]);
                         }
+                        #endregion
                         else
                         {
                             switch ((Data)databytebytes[0])
                             {
                                 case Data.objInteract:
-                                    buffer = await StreamHelp.ReadExactlyAsync(stream, 3); //FIX HERE
+                                    buffer = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]); //FIX HERE
                                     if (buffer[0] == (byte)InteractionTypes.pickupPlate)
                                     {
                                         int clientId = (int)buffer[1];
@@ -463,14 +428,7 @@ namespace YoavProject
                                         }
                                         if (flag)
                                         {
-                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
-                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
-                                            if (!BitConverter.IsLittleEndian)
-                                            {
-                                                Array.Reverse(enclength);
-                                            }
-                                            await stream.WriteAsync(enclength, 0, enclength.Length);
-                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     } 
                                     else if (buffer[0] == (byte)InteractionTypes.putdownPlate)
@@ -491,14 +449,7 @@ namespace YoavProject
                                         }
                                         if (flag)
                                         {
-                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
-                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
-                                            if (!BitConverter.IsLittleEndian)
-                                            {
-                                                Array.Reverse(enclength);
-                                            }
-                                            await stream.WriteAsync(enclength, 0, enclength.Length);
-                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     }
                                     else if (buffer[0] == (byte)InteractionTypes.enterGame)
@@ -519,14 +470,7 @@ namespace YoavProject
                                         }
                                         if (flag)
                                         {
-                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
-                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
-                                            if (!BitConverter.IsLittleEndian)
-                                            {
-                                                Array.Reverse(enclength);
-                                            }
-                                            await stream.WriteAsync(enclength, 0, enclength.Length);
-                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     }
                                     else if (buffer[0] == (byte)InteractionTypes.leaveGame)
@@ -547,14 +491,7 @@ namespace YoavProject
                                         }
                                         if (flag)
                                         {
-                                            byte[] successenc = Encryption.encryptAES(successinteraction, AESkeysUsingClients[client]);
-                                            byte[] enclength = BitConverter.GetBytes(successenc.Length);
-                                            if (!BitConverter.IsLittleEndian)
-                                            {
-                                                Array.Reverse(enclength);
-                                            }
-                                            await stream.WriteAsync(enclength, 0, enclength.Length);
-                                            await stream.WriteAsync(successenc, 0, successenc.Length);
+                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     }
                                     break;

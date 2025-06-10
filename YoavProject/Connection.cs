@@ -181,5 +181,31 @@ namespace YoavProject
             }
             return buffer;
         }
+
+        public static async Task WriteEncrypted(this Stream stream, byte[] message, string AESkey)
+        {
+            byte[] enc = Encryption.encryptAES(message, AESkey);
+            byte[] enclength = BitConverter.GetBytes(enc.Length);
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(enclength);
+            }
+            await stream.WriteAsync(enclength, 0, enclength.Length);
+            await stream.WriteAsync(enc, 0, enc.Length);
+        }
+
+        public static async Task<byte[]> ReadEncrypted(this Stream stream, string AESkey)
+        {
+            byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+            if (!BitConverter.IsLittleEndian)
+                Array.Reverse(lengthbyte);
+
+            int length = BitConverter.ToInt32(lengthbyte, 0);
+
+            byte[] bytesenc = await StreamHelp.ReadExactlyAsync(stream, length);
+
+            byte[] bytes = Encryption.decryptAES(bytesenc, AESkey);
+            return bytes;
+        }
     }
 }
