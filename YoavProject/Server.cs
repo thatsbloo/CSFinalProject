@@ -118,6 +118,10 @@ namespace YoavProject
 
         private async Task connectClientToGame(TcpClient client)
         {
+            Invoke((MethodInvoker)delegate {
+                label1.Text = "connecting client to game";
+            });
+            
             try
             {
                 NetworkStream stream = client.GetStream();
@@ -171,6 +175,9 @@ namespace YoavProject
                 await StreamHelp.WriteEncrypted(stream, new byte[] { byteId }, AESkeysUsingClients[client]);
                 Console.WriteLine("Sent id: " + byteId);
 
+                Invoke((MethodInvoker)delegate {
+                    label1.Text = stateSyncList.ToArray().Length + " ";
+                });
                 await StreamHelp.WriteEncrypted(stream, stateSyncList.ToArray(), AESkeysUsingClients[client]);
                 Console.WriteLine("Sent stae sync list");
             }
@@ -327,16 +334,15 @@ namespace YoavProject
                         #region signin part
                         if (!isSignedIn)
                         {
-                            byte[] registrationbytes = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]);
                             byte[] usernamelengthbytes = new byte[4];
-                            Array.Copy(registrationbytes, 0, usernamelengthbytes, 0, 4);
+                            Array.Copy(databytebytes, 1, usernamelengthbytes, 0, 4);
                             if (!BitConverter.IsLittleEndian)
                                 Array.Reverse(usernamelengthbytes);
 
                             int usernamelength = BitConverter.ToInt32(usernamelengthbytes, 0);
-                            string username = Encoding.UTF8.GetString(registrationbytes, 4, usernamelength);
-                            Console.WriteLine(username);
-                            string password = Encoding.UTF8.GetString(registrationbytes, 4 + usernamelength, registrationbytes.Length - usernamelength - 4);
+                            string username = Encoding.UTF8.GetString(databytebytes, 5, usernamelength);
+                            Console.WriteLine("username: " + username);
+                            string password = Encoding.UTF8.GetString(databytebytes, 5 + usernamelength, databytebytes.Length - usernamelength - 5);
 
                             byte[] reply = new byte[1];
                             if (RegisterLogin.isFieldValid(username))
@@ -374,7 +380,10 @@ namespace YoavProject
                                                     {
                                                         reply[0] = (byte)Registration.LoginSuccess;
                                                         isSignedIn = true;
+
+                                                        await StreamHelp.WriteEncrypted(stream, reply, AESkeysUsingClients[client]);
                                                         await Task.Run(() => connectClientToGame(client));
+                                                        //possibly return here
                                                     }
                                                     else
                                                     {
@@ -400,8 +409,9 @@ namespace YoavProject
                             {
                                 reply[0] = (byte)Registration.ErrorInvalid;
                             }
-                            Console.WriteLine(reply[0]);
-                            await StreamHelp.WriteEncrypted(stream, reply, AESkeysUsingClients[client]);
+                            Console.WriteLine("reply: " + reply[0]);
+                            if (!isSignedIn)
+                                await StreamHelp.WriteEncrypted(stream, reply, AESkeysUsingClients[client]);
                         }
                         #endregion
                         else
@@ -409,11 +419,11 @@ namespace YoavProject
                             switch ((Data)databytebytes[0])
                             {
                                 case Data.objInteract:
-                                    buffer = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]); //FIX HERE
-                                    if (buffer[0] == (byte)InteractionTypes.pickupPlate)
+                                    //buffer = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]); //FIX HERE
+                                    if (databytebytes[1] == (byte)InteractionTypes.pickupPlate)
                                     {
-                                        int clientId = (int)buffer[1];
-                                        int interactableId = (int)buffer[2];
+                                        int clientId = (int)databytebytes[2];
+                                        int interactableId = (int)databytebytes[3];
                                         byte[] successinteraction = new byte[2];
                                         bool flag = false;
                                         lock (stateLock)
@@ -431,10 +441,10 @@ namespace YoavProject
                                             await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     } 
-                                    else if (buffer[0] == (byte)InteractionTypes.putdownPlate)
+                                    else if (databytebytes[1] == (byte)InteractionTypes.putdownPlate)
                                     {
-                                        int clientId = (int)buffer[1];
-                                        int interactableId = (int)buffer[2];
+                                        int clientId = (int)databytebytes[2];
+                                        int interactableId = (int)databytebytes[3];
                                         byte[] successinteraction = new byte[2];
                                         bool flag = false;
                                         lock (stateLock)
@@ -452,10 +462,10 @@ namespace YoavProject
                                             await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     }
-                                    else if (buffer[0] == (byte)InteractionTypes.enterGame)
+                                    else if (databytebytes[1] == (byte)InteractionTypes.enterGame)
                                     {
-                                        int clientId = (int)buffer[1];
-                                        int interactableId = (int)buffer[2];
+                                        int clientId = (int)databytebytes[2];
+                                        int interactableId = (int)databytebytes[3];
                                         byte[] successinteraction = new byte[2];
                                         bool flag = false;
                                         lock (stateLock)
@@ -473,10 +483,10 @@ namespace YoavProject
                                             await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
                                         }
                                     }
-                                    else if (buffer[0] == (byte)InteractionTypes.leaveGame)
+                                    else if (databytebytes[1] == (byte)InteractionTypes.leaveGame)
                                     {
-                                        int clientId = (int)buffer[1];
-                                        int interactableId = (int)buffer[2];
+                                        int clientId = (int)databytebytes[2];
+                                        int interactableId = (int)databytebytes[3];
                                         byte[] successinteraction = new byte[2];
                                         bool flag = false;
                                         lock (stateLock)

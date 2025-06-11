@@ -103,31 +103,75 @@ namespace YoavProject
             }
         }
 
+        //public static byte[] decryptAES(byte[] message, string stringKey)
+        //{
+        //    byte[] key = Convert.FromBase64String(stringKey);
+
+        //    using (Aes aes = Aes.Create())
+        //    {
+        //        aes.Key = key;
+        //        Console.WriteLine($"Key length: {key.Length} bytes");
+        //        aes.Mode = CipherMode.CBC;
+        //        aes.Padding = PaddingMode.PKCS7;
+        //        if (message.Length < aes.BlockSize / 8)
+        //            throw new ArgumentException("Encrypted message too short to contain IV.");
+
+
+        //        byte[] iv = new byte[aes.BlockSize / 8];
+        //        Array.Copy(message, iv, iv.Length);
+        //        aes.IV = iv;
+
+        //        using (var decryptor = aes.CreateDecryptor())
+        //        using (var ms = new MemoryStream(message, iv.Length, message.Length - iv.Length))
+        //        using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
+        //        using (var outputMs = new MemoryStream())
+        //        {
+        //            cs.CopyTo(outputMs);  // copy decrypted bytes to outputMs
+        //            return outputMs.ToArray();
+        //        }
+        //    }
+        //}
+
         public static byte[] decryptAES(byte[] message, string stringKey)
         {
+            Console.WriteLine($"[decryptAES] Total message length: {message.Length}");
+
             byte[] key = Convert.FromBase64String(stringKey);
+            Console.WriteLine($"[decryptAES] AES key length: {key.Length}");
 
             using (Aes aes = Aes.Create())
             {
                 aes.Key = key;
-                Console.WriteLine($"Key length: {key.Length} bytes");
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
-                if (message.Length < aes.BlockSize / 8)
-                    throw new ArgumentException("Encrypted message too short to contain IV.");
 
+                if (message.Length < aes.BlockSize / 8)
+                {
+                    Console.WriteLine("[decryptAES] Encrypted message too short for IV.");
+                    throw new ArgumentException("Encrypted message too short to contain IV.");
+                }
 
                 byte[] iv = new byte[aes.BlockSize / 8];
                 Array.Copy(message, iv, iv.Length);
                 aes.IV = iv;
+                Console.WriteLine("[decryptAES] IV: " + BitConverter.ToString(iv));
 
                 using (var decryptor = aes.CreateDecryptor())
                 using (var ms = new MemoryStream(message, iv.Length, message.Length - iv.Length))
                 using (var cs = new CryptoStream(ms, decryptor, CryptoStreamMode.Read))
                 using (var outputMs = new MemoryStream())
                 {
-                    cs.CopyTo(outputMs);  // copy decrypted bytes to outputMs
-                    return outputMs.ToArray();
+                    try
+                    {
+                        cs.CopyTo(outputMs);
+                        Console.WriteLine("[decryptAES] Successfully decrypted.");
+                        return outputMs.ToArray();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("[decryptAES] Exception during decryption: " + ex.Message);
+                        throw;
+                    }
                 }
             }
         }

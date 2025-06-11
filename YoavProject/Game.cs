@@ -106,28 +106,16 @@ namespace YoavProject
 
         private async Task joinTheGameWorld()
         {
+            Console.WriteLine("starting join the gameworld?");
             NetworkStream stream = tcpClient.GetStream();
             // read byte for client id
-            byte[] bufferlength = await StreamHelp.ReadExactlyAsync(stream, 4);
-            if (!BitConverter.IsLittleEndian)
-                Array.Reverse(bufferlength);
-            int length = BitConverter.ToInt32(bufferlength, 0);
-            byte[] bufferenc = new byte[2048];
-            bufferenc = await StreamHelp.ReadExactlyAsync(stream, length);
-            byte[] decrypted = Encryption.decryptAES(bufferenc, AESkey);
-            clientId = (int)decrypted[0];
-            Console.WriteLine("id: " + clientId);
-            connected = true;
+            byte[] decryptedID = await StreamHelp.ReadEncrypted(stream, AESkey);
+            clientId = (int)decryptedID[0];
+            Console.WriteLine("my id: " + clientId);
 
-            bufferlength = await StreamHelp.ReadExactlyAsync(stream, 4);
-            if (!BitConverter.IsLittleEndian)
-                Array.Reverse(bufferlength);
-            length = BitConverter.ToInt32(bufferlength, 0);
-            Console.WriteLine("length: " + length);
-            bufferenc = await StreamHelp.ReadExactlyAsync(stream, length);
-            byte[] buffer = Encryption.decryptAES(bufferenc, AESkey);
+            byte[] buffer = await StreamHelp.ReadEncrypted(stream, AESkey);
+            Console.WriteLine("buffer sync length: " + buffer.Length);
             
-
             byte packetType = buffer[0];
 
             Console.WriteLine(packetType);
@@ -278,6 +266,7 @@ namespace YoavProject
                                 board.Show();
                                 signup = false;
                             });
+                            Console.WriteLine("await jointhegameworld");
                             await joinTheGameWorld();
                             break;
                         default:
@@ -297,8 +286,8 @@ namespace YoavProject
             }
             Stream stream = tcpClient.GetStream();
             List<byte> data = new List<byte>();
-            byte[] msgtype = new byte[] { (byte)Registration.Login };
-            await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
+            //byte[] msgtype = new byte[] { (byte)Registration.Login };
+            //await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
 
             
             string username = login.getUsername();
@@ -309,6 +298,7 @@ namespace YoavProject
             {
                 Array.Reverse(usernameLengthBytes);
             }
+            data.Add((byte)Registration.Login);
             data.AddRange(usernameLengthBytes);
             data.AddRange(Encoding.UTF8.GetBytes(username));
             data.AddRange(Encoding.UTF8.GetBytes(pass));
@@ -323,9 +313,9 @@ namespace YoavProject
                 login.displayErrorMessage("Username and Password must only include English letters and numbers!");
             }
             Stream stream = tcpClient.GetStream();
-
-            byte[] msgtype = new byte[] { (byte)Registration.Login };
-            await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
+            List<byte> data = new List<byte>();
+            //byte[] msgtype = new byte[] { (byte)Registration.Login };
+            //await StreamHelp.WriteEncrypted(stream, msgtype, AESkey);
 
 
             string username = login.getUsername();
@@ -336,6 +326,7 @@ namespace YoavProject
             {
                 Array.Reverse(usernameLengthBytes);
             }
+            data.Add((byte)Registration.Login);
             data.AddRange(usernameLengthBytes);
             data.AddRange(Encoding.UTF8.GetBytes(username));
             data.AddRange(Encoding.UTF8.GetBytes(pass));
@@ -407,19 +398,16 @@ namespace YoavProject
             }
         }
 
-        private async Task listenForTcpUpdatesAsync()
+        private async Task listenForTcpUpdatesAsync() //finish fixing
         {
             NetworkStream stream = tcpClient.GetStream();
-            byte[] buffer = new byte[1024];
+            //byte[] buffer = new byte[1024];
 
             try
             {
                 while(connected)
                 {
-                    byte[] databytelengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
-                    if (!BitConverter.IsLittleEndian)
-                        Array.Reverse(databytelengthbyte);
-                    byte[] databytebytes = Encryption.decryptAES(await StreamHelp.ReadExactlyAsync(stream, BitConverter.ToInt32(databytelengthbyte, 0)), AESkey);
+                    byte[] databytebytes = await StreamHelp.ReadEncrypted(stream, AESkey);
 
                     if (databytebytes[0] == -1)
                     {
@@ -483,23 +471,9 @@ namespace YoavProject
             tcpClient.Close();
         }
 
-        public static async void sendMessage(byte[] message, Data datatype)
+        public static async void sendMessage(byte[] message)
         {
-            byte[] enctype = Encryption.encryptAES(new byte[] { (byte)datatype }, AESkey);
-            byte[] enctypelength = BitConverter.GetBytes(enctype.Length);
-
-
-            byte[] encmessage = Encryption.encryptAES(message, AESkey);
-            byte[] enclength = BitConverter.GetBytes(encmessage.Length);
-            if (!BitConverter.IsLittleEndian)
-            {
-                Array.Reverse(enctypelength);
-                Array.Reverse(enclength);
-            }
-            await tcpClient.GetStream().WriteAsync(enctypelength, 0, enctypelength.Length);
-            await tcpClient.GetStream().WriteAsync(enctype, 0, enctype.Length);
-            await tcpClient.GetStream().WriteAsync(enclength, 0, enclength.Length);
-            await tcpClient.GetStream().WriteAsync(encmessage, 0, encmessage.Length);
+            await StreamHelp.WriteEncrypted(tcpClient.GetStream(), message, AESkey);
         }
     }
 }

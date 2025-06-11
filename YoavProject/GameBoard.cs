@@ -69,7 +69,7 @@ namespace YoavProject
             Console.WriteLine("I hath been interacted with");
             return true;
         }
-        public void Update()
+        public async void Update()
         {
             #region proccess keys
             var justPressedKeys = new HashSet<Keys>(pressedKeys);
@@ -104,11 +104,12 @@ namespace YoavProject
                 {
                     if (state.canInteractWith(highlightedID))
                     {
-                        byte[] message = new byte[3];
-                        message[0] = (byte)InteractionTypes.pickupPlate;
-                        message[1] = (byte)Game.clientId;
-                        message[2] = (byte)highlightedID;
-                        Game.sendMessage(message, Data.objInteract);
+                        byte[] message = new byte[4];
+                        message[0] = (byte)Data.objInteract;
+                        message[1] = (byte)InteractionTypes.pickupPlate;
+                        message[2] = (byte)Game.clientId;
+                        message[3] = (byte)highlightedID;
+                        Game.sendMessage(message);
                         //player.addPlate();
                     }
                 }

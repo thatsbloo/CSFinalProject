@@ -11,7 +11,7 @@ namespace YoavProject
 {
     enum Messages { ServerExists, DenyServerReq, ConnectingReq}
 
-    enum Registration: byte { Register = 1, Login = 2, RegisterSuccess = 3, LoginSuccess = 4, ErrorTaken = 5, ErrorWrong = 6, ErrorInvalid = 7, ErrorLoggedIn = 8 }
+    enum Registration: byte { Register = 1, Login = 9, RegisterSuccess = 3, LoginSuccess = 4, ErrorTaken = 5, ErrorWrong = 6, ErrorInvalid = 7, ErrorLoggedIn = 8 }
     public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, worldStateSync = 5, objInteract = 6, interactionStateSync = 7, objInteractSuccess = 8 } //objinteract
     enum InteractionTypes: byte { pickupPlate = 1, putdownPlate = 2, enterGame = 3, leaveGame = 4 }
 
@@ -166,19 +166,42 @@ namespace YoavProject
     static class StreamHelp
     {
         public static int tcpPort = 6055;
+        //public static async Task<byte[]> ReadExactlyAsync(this Stream stream, int length)
+        //{
+        //    byte[] buffer = new byte[length];
+        //    int offset = 0;
+        //    while (offset < length)
+        //    {
+        //        int bytesRead = await stream.ReadAsync(buffer, offset, length - offset);
+        //        if (bytesRead == 0)
+        //        {
+        //            throw new IOException("Unexpected end of stream.");
+        //        }
+        //        offset += bytesRead;
+        //    }
+        //    return buffer;
+        //}
+
         public static async Task<byte[]> ReadExactlyAsync(this Stream stream, int length)
         {
+            Console.WriteLine($"[ReadExactlyAsync] Reading {length} bytes...");
             byte[] buffer = new byte[length];
             int offset = 0;
+
             while (offset < length)
             {
                 int bytesRead = await stream.ReadAsync(buffer, offset, length - offset);
                 if (bytesRead == 0)
                 {
+                    Console.WriteLine($"[ReadExactlyAsync] Unexpected end of stream at offset {offset}");
                     throw new IOException("Unexpected end of stream.");
                 }
+
                 offset += bytesRead;
+                Console.WriteLine($"[ReadExactlyAsync] Read {bytesRead} bytes, total read: {offset}/{length}");
             }
+
+            Console.WriteLine("[ReadExactlyAsync] Done reading.");
             return buffer;
         }
 
@@ -194,17 +217,38 @@ namespace YoavProject
             await stream.WriteAsync(enc, 0, enc.Length);
         }
 
+        //public static async Task<byte[]> ReadEncrypted(this Stream stream, string AESkey)
+        //{
+        //    byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+        //    if (!BitConverter.IsLittleEndian)
+        //        Array.Reverse(lengthbyte);
+
+        //    int length = BitConverter.ToInt32(lengthbyte, 0);
+
+        //    byte[] bytesenc = await StreamHelp.ReadExactlyAsync(stream, length);
+
+        //    byte[] bytes = Encryption.decryptAES(bytesenc, AESkey);
+        //    return bytes;
+        //}
+
         public static async Task<byte[]> ReadEncrypted(this Stream stream, string AESkey)
         {
+            Console.WriteLine("[ReadEncrypted] Reading length...");
             byte[] lengthbyte = await StreamHelp.ReadExactlyAsync(stream, 4);
+            Console.WriteLine("[ReadEncrypted] Raw length bytes: " + BitConverter.ToString(lengthbyte));
+
             if (!BitConverter.IsLittleEndian)
                 Array.Reverse(lengthbyte);
 
             int length = BitConverter.ToInt32(lengthbyte, 0);
+            Console.WriteLine($"[ReadEncrypted] Encrypted payload length: {length}");
 
             byte[] bytesenc = await StreamHelp.ReadExactlyAsync(stream, length);
+            Console.WriteLine($"[ReadEncrypted] Encrypted bytes: {BitConverter.ToString(bytesenc)}");
 
             byte[] bytes = Encryption.decryptAES(bytesenc, AESkey);
+            Console.WriteLine($"[ReadEncrypted] Decrypted bytes: {BitConverter.ToString(bytes)}");
+
             return bytes;
         }
     }
