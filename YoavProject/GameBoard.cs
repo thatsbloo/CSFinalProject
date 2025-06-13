@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.PerformanceData;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -29,7 +30,7 @@ namespace YoavProject
 
         private int highlightedID = -1;
 
-
+        public int countdownNum = 0;
 
         public GameBoard()
         {
@@ -105,7 +106,7 @@ namespace YoavProject
                     if (state.canInteractWith(highlightedID))
                     {
                         byte[] message = new byte[4];
-                        message[0] = (byte)Data.objInteract;
+                        message[0] = (byte)Data.ObjInteract;
                         message[1] = (byte)InteractionTypes.pickupPlate;
                         message[2] = (byte)Game.clientId;
                         message[3] = (byte)highlightedID;
@@ -113,6 +114,12 @@ namespace YoavProject
                         //player.addPlate();
                     }
                 }
+            }
+            if (justPressedKeys.Contains(Keys.Q))
+            {
+                byte[] message = new byte[1];
+                message[0] = (byte)Data.EnterQueue;
+                Game.sendMessage(message);
             }
             #endregion
 
@@ -290,6 +297,10 @@ namespace YoavProject
 
             
             //d
+            if (countdownNum > 5 || countdownNum < 0)
+            {
+                e.Graphics.DrawString(countdownNum + "", new Font("arial", 16), Brushes.Black, Width / 2, Height / 2);
+            }
         }
 
         private void drawBackground(PaintEventArgs e)

@@ -34,6 +34,8 @@ namespace YoavProject
         private string RSApublicKey;
 
         private static string AESkey;
+        public static bool isGameOrQueue = false;
+        private HashSet<int> IdInGameOrQueue = new HashSet<int>();
 
         public Game()
         {
@@ -415,14 +417,21 @@ namespace YoavProject
                         break;
                     }
                     byte[] res;
+                    Console.WriteLine(databytebytes[0]);
                     switch((Data)databytebytes[0])
                     {
+                       
                         case Data.NewPlayer:
-                            res = await StreamHelp.ReadExactlyAsync(stream, 9);
+                            //res = await StreamHelp.ReadExactlyAsync(stream, 9);
 
-                            byte playerId = res[0];
-                            float posX = BitConverter.ToSingle(res, 1);
-                            float posY = BitConverter.ToSingle(res, 5);
+                            byte playerId = databytebytes[1];
+                            if (!BitConverter.IsLittleEndian)
+                            {
+                                Array.Reverse(databytebytes, 2, 4);
+                                Array.Reverse(databytebytes, 6, 4);
+                            }
+                            float posX = BitConverter.ToSingle(databytebytes, 2);
+                            float posY = BitConverter.ToSingle(databytebytes, 6);
 
                             Console.WriteLine($"New player joined! ID: {playerId}");
 
@@ -435,14 +444,39 @@ namespace YoavProject
                                 online_players.Add(p);
                             }
                             break;
-                        case Data.objInteractSuccess:
-                            res = await StreamHelp.ReadExactlyAsync(stream, 2);
-                            if (res[0] == (byte)InteractionTypes.pickupPlate)
+                        case Data.ObjInteractSuccess:
+                            //res = await StreamHelp.ReadExactlyAsync(stream, 2);
+                            if (databytebytes[0] == (byte)InteractionTypes.pickupPlate)
                             {
                                 board.player.addPlate();
-                                int interactableId = (int)res[1];
+                                int interactableId = (int)databytebytes[1];
                                 board.state.interactWith(interactableId);
                             }
+
+                            break;
+                        case Data.EnterQueue:
+                            Console.WriteLine("Emterqueue");
+                            if (databytebytes[1] == (byte)clientId)
+                                isGameOrQueue = !isGameOrQueue;
+                            Console.WriteLine(databytebytes[1] + " " + isGameOrQueue);
+                            break;
+                        case Data.CountdownStart:
+                            if (isGameOrQueue)
+                            {
+                                Invoke((MethodInvoker)delegate
+                                {
+                                    board.countdownNum = 5;
+                                    Console.WriteLine("hey!!");
+                                    GameCountdown.Start();
+                                });
+                            }
+                            break;
+                        case Data.CountdownStop:
+                            Invoke((MethodInvoker)delegate
+                            {
+                                board.countdownNum = 6;
+                                GameCountdown.Stop();
+                            });
 
                             break;
                         default:
@@ -474,6 +508,12 @@ namespace YoavProject
         public static async void sendMessage(byte[] message)
         {
             await StreamHelp.WriteEncrypted(tcpClient.GetStream(), message, AESkey);
+        }
+
+        private void GameCountdown_Tick(object sender, EventArgs e)
+        {
+            Console.WriteLine(board.countdownNum);
+            board.countdownNum--;
         }
     }
 }

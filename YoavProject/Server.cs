@@ -1,6 +1,8 @@
 ﻿using System;
+using System.CodeDom;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
@@ -18,7 +20,8 @@ namespace YoavProject
         public TcpListener listener;
 
         public static List<TcpClient> allClients = new List<TcpClient>();
-        public static Dictionary<int, TcpClient> activeClientsUsingID = new Dictionary<int, TcpClient>();
+        
+        public static Dictionary<TcpClient, int> IDUsingClients = new Dictionary<TcpClient, int>();
         public static Dictionary<int, IPEndPoint> udpEndpointsUsingID = new Dictionary<int, IPEndPoint>();
 
         public static Dictionary<TcpClient, string> AESkeysUsingClients = new Dictionary<TcpClient, string>();
@@ -29,6 +32,8 @@ namespace YoavProject
         private static WorldState state;
 
         public static int totalClients = 0;
+        public static int currentlyOnline = 0;
+        public const int maxQueue = 4;
         private static readonly object clientsLock = new object();
         private static readonly object stateLock = new object();
 
@@ -36,7 +41,8 @@ namespace YoavProject
         private string RSAprivate;
 
         private bool inGame;
-        private HashSet<int> IDsInGame; 
+        private bool startingGame;
+        private HashSet<int> IDsInGameOrQueue; 
 
         private JsonHandler JsonHandler;
         public Server()
@@ -55,7 +61,9 @@ namespace YoavProject
             (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
             Console.WriteLine(RSApublic);
             JsonHandler = new JsonHandler();
-            IDsInGame = new HashSet<int>();
+            IDsInGameOrQueue = new HashSet<int>();
+            inGame = false;
+            startingGame = false;
             state = new WorldState();
             state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.lobby));
 
@@ -128,10 +136,11 @@ namespace YoavProject
                 int clientId = Interlocked.Increment(ref totalClients);
 
                 List<byte> stateSyncList = new List<byte>();
-                Dictionary<int, TcpClient> clientSnapshot;
+                Dictionary<TcpClient, int> clientSnapshot;
                 lock (clientsLock)
                 {
-                    clientSnapshot = new Dictionary<int, TcpClient>(activeClientsUsingID);
+                    currentlyOnline++;
+                    clientSnapshot = new Dictionary<TcpClient, int>(IDUsingClients);
                     stateSyncList.Add((byte)Data.CompleteStateSync);
                     stateSyncList.Add((byte)playersUsingID.Count);
 
@@ -146,7 +155,7 @@ namespace YoavProject
                     }
 
                     allClients.Add(client);
-                    activeClientsUsingID.Add(clientId, client);
+                    IDUsingClients.Add(client, clientId);
                     playersUsingID.Add(clientId, new Player());
                     //copy playersusingid to currplayers
                 }
@@ -165,10 +174,10 @@ namespace YoavProject
                 Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
 
                 
-                foreach (TcpClient existingClient in clientSnapshot.Values)
+                foreach (TcpClient existingClient in clientSnapshot.Keys)
                 {
                     Console.WriteLine("ahhhhh");
-                    await StreamHelp.WriteEncrypted(stream, newPlayerBytes, AESkeysUsingClients[client]);
+                    await StreamHelp.WriteEncrypted(existingClient.GetStream(), newPlayerBytes, AESkeysUsingClients[client]);
                 }
                 Console.WriteLine($"Client connected with ID {clientId}");
 
@@ -418,7 +427,7 @@ namespace YoavProject
                         {
                             switch ((Data)databytebytes[0])
                             {
-                                case Data.objInteract:
+                                case Data.ObjInteract:
                                     //buffer = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]); //FIX HERE
                                     if (databytebytes[1] == (byte)InteractionTypes.pickupPlate)
                                     {
@@ -431,14 +440,14 @@ namespace YoavProject
                                             if (state.interactWith(interactableId))
                                             {
                                                 
-                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[0] = (byte)Data.ObjInteractSuccess;
                                                 successinteraction[1] = (byte)interactableId;
                                                 flag = true;
                                             }
                                         }
                                         if (flag)
                                         {
-                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
+                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), successinteraction, AESkeysUsingClients);
                                         }
                                     } 
                                     else if (databytebytes[1] == (byte)InteractionTypes.putdownPlate)
@@ -452,57 +461,85 @@ namespace YoavProject
                                             if (state.interactWith(interactableId))
                                             {
 
-                                                successinteraction[0] = (byte)Data.objInteractSuccess;
+                                                successinteraction[0] = (byte)Data.ObjInteractSuccess;
                                                 successinteraction[1] = (byte)interactableId;
                                                 flag = true;
                                             }
                                         }
                                         if (flag)
                                         {
-                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
+                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), successinteraction, AESkeysUsingClients);
                                         }
                                     }
-                                    else if (databytebytes[1] == (byte)InteractionTypes.enterGame)
+                                    break;
+                                case Data.EnterQueue:
+                                    Console.WriteLine("Received EnterQueue");
+                                    if (!inGame)
                                     {
-                                        int clientId = (int)databytebytes[2];
-                                        int interactableId = (int)databytebytes[3];
-                                        byte[] successinteraction = new byte[2];
+                                        Console.WriteLine("Not in game");
                                         bool flag = false;
-                                        lock (stateLock)
+                                        int nowInQueue = 0;
+                                        lock (clientsLock)
                                         {
-                                            if (state.interactWith(interactableId))
+                                            if (!IDsInGameOrQueue.Contains(IDUsingClients[client]))
                                             {
-                                                IDsInGame.Add(clientId);
-                                                successinteraction[0] = (byte)Data.objInteractSuccess;
-                                                successinteraction[1] = (byte)interactableId;
+                                                Console.WriteLine("player id not in queue");
+                                                if (IDsInGameOrQueue.Count <= maxQueue)
+                                                {
+                                                    Console.WriteLine("adding player");
+                                                    IDsInGameOrQueue.Add(IDUsingClients[client]);
+                                                    nowInQueue = IDsInGameOrQueue.Count;
+                                                    flag = true;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                Console.WriteLine("removing player");
+                                                IDsInGameOrQueue.Remove(IDUsingClients[client]);
+                                                nowInQueue = IDsInGameOrQueue.Count;
                                                 flag = true;
                                             }
                                         }
                                         if (flag)
                                         {
-                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
+                                            Console.WriteLine("sending message of enterqueue");
+                                            byte[] message = new byte[2];
+                                            message[0] = (byte)Data.EnterQueue;
+                                            message[1] = (byte)IDUsingClients[client];
+                                            Invoke((MethodInvoker)delegate {
+                                                label1.Text = IDUsingClients[client]+"";
+                                            });
+
+                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
                                         }
-                                    }
-                                    else if (databytebytes[1] == (byte)InteractionTypes.leaveGame)
-                                    {
-                                        int clientId = (int)databytebytes[2];
-                                        int interactableId = (int)databytebytes[3];
-                                        byte[] successinteraction = new byte[2];
-                                        bool flag = false;
-                                        lock (stateLock)
+                                        Console.WriteLine((nowInQueue == maxQueue) + " " + (nowInQueue == currentlyOnline) + " " + nowInQueue + " " + currentlyOnline);
+                                        if (nowInQueue == maxQueue || nowInQueue == currentlyOnline)
                                         {
-                                            if (state.interactWith(interactableId))
+                                            Console.WriteLine("sending message of start countdown");
+                                            byte[] message = new byte[1];
+                                            message[0] = (byte)Data.CountdownStart;
+                                            startingGame = true;
+                                            Invoke((MethodInvoker)delegate
                                             {
-                                                IDsInGame.Remove(clientId);
-                                                successinteraction[0] = (byte)Data.objInteractSuccess;
-                                                successinteraction[1] = (byte)interactableId;
-                                                flag = true;
-                                            }
+                                                GameCountdown.Start();
+                                            });
+                                            
+                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
                                         }
-                                        if (flag)
+                                        if (startingGame && nowInQueue < maxQueue && nowInQueue != currentlyOnline)
                                         {
-                                            await StreamHelp.WriteEncrypted(stream, successinteraction, AESkeysUsingClients[client]);
+                                            Console.WriteLine("sending message of stop countdown");
+                                            byte[] message = new byte[1];
+                                            message[0] = (byte)Data.CountdownStop;
+                                            startingGame = false;
+                                            Invoke((MethodInvoker)delegate
+                                            {
+                                                GameCountdown.Stop();
+                                            });
+
+                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
                                         }
+                                        
                                     }
                                     break;
                                 default:
@@ -529,6 +566,16 @@ namespace YoavProject
                 foreach (var client in allClients)
                     client.Close();
             }
+        }
+
+        private async void GameCountdown_Tick(object sender, EventArgs e)
+        {
+            Console.WriteLine("sending game start");
+            startingGame = false;
+            inGame = true;
+            byte[] message = new byte[1];
+            message[0] = (byte)Data.GameStart;
+            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
         }
     }
 }

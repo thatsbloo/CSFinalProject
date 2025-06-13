@@ -30,6 +30,7 @@
         {
             this.components = new System.ComponentModel.Container();
             this.GameLoop = new System.Windows.Forms.Timer(this.components);
+            this.GameCountdown = new System.Windows.Forms.Timer(this.components);
             this.SuspendLayout();
             // 
             // GameLoop
@@ -38,11 +39,17 @@
             this.GameLoop.Interval = 33;
             this.GameLoop.Tick += new System.EventHandler(this.GameLoop_Tick);
             // 
+            // GameCountdown
+            // 
+            this.GameCountdown.Interval = 1000;
+            this.GameCountdown.Tick += new System.EventHandler(this.GameCountdown_Tick);
+            // 
             // Game
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(533, 300);
+            this.ClientSize = new System.Drawing.Size(800, 462);
+            this.Margin = new System.Windows.Forms.Padding(4, 5, 4, 5);
             this.Name = "Game";
             this.Text = "Game";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.Game_FormClosing);
@@ -55,5 +62,6 @@
         #endregion
 
         private System.Windows.Forms.Timer GameLoop;
+        private System.Windows.Forms.Timer GameCountdown;
     }
 }

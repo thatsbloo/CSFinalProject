@@ -31,6 +31,9 @@
             this.components = new System.ComponentModel.Container();
             this.GameLoop = new System.Windows.Forms.Timer(this.components);
             this.label1 = new System.Windows.Forms.Label();
+            this.GameCountdown = new System.Windows.Forms.Timer(this.components);
+            this.GameRound = new System.Windows.Forms.Timer(this.components);
+            this.GameInterval = new System.Windows.Forms.Timer(this.components);
             this.SuspendLayout();
             // 
             // GameLoop
@@ -42,11 +45,24 @@
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(336, 178);
+            this.label1.Location = new System.Drawing.Point(375, 149);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(51, 20);
             this.label1.TabIndex = 0;
             this.label1.Text = "label1";
+            // 
+            // GameCountdown
+            // 
+            this.GameCountdown.Interval = 5000;
+            this.GameCountdown.Tick += new System.EventHandler(this.GameCountdown_Tick);
+            // 
+            // GameRound
+            // 
+            this.GameRound.Interval = 15000;
+            // 
+            // GameInterval
+            // 
+            this.GameInterval.Interval = 5000;
             // 
             // Server
             // 
@@ -67,5 +83,8 @@
 
         private System.Windows.Forms.Timer GameLoop;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Timer GameCountdown;
+        private System.Windows.Forms.Timer GameRound;
+        private System.Windows.Forms.Timer GameInterval;
     }
 }
