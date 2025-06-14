@@ -69,5 +69,15 @@ namespace YoavProject.Properties {
                 return ((System.Drawing.Bitmap)(obj));
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Map1 {
+            get {
+                object obj = ResourceManager.GetObject("Map1", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

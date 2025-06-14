@@ -2,9 +2,11 @@
 using System.CodeDom;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -27,6 +29,7 @@ namespace YoavProject
         public static Dictionary<TcpClient, string> AESkeysUsingClients = new Dictionary<TcpClient, string>();
 
         public static Dictionary<int, Player> playersUsingID = new Dictionary<int, Player>();
+        public static Dictionary<int, string> usernameUsingID = new Dictionary<int, string>();
 
         private GameBoard board;
         private static WorldState state;
@@ -124,7 +127,7 @@ namespace YoavProject
             }
         }
 
-        private async Task connectClientToGame(TcpClient client)
+        private async Task connectClientToGame(TcpClient client, string username)
         {
             Invoke((MethodInvoker)delegate {
                 label1.Text = "connecting client to game";
@@ -134,7 +137,7 @@ namespace YoavProject
             {
                 NetworkStream stream = client.GetStream();
                 int clientId = Interlocked.Increment(ref totalClients);
-
+                usernameUsingID.Add(clientId, username);
                 List<byte> stateSyncList = new List<byte>();
                 Dictionary<TcpClient, int> clientSnapshot;
                 lock (clientsLock)
@@ -387,11 +390,12 @@ namespace YoavProject
                                                 {
                                                     if (JsonHandler.verifyLogin(username, password))
                                                     {
+                                                        
                                                         reply[0] = (byte)Registration.LoginSuccess;
                                                         isSignedIn = true;
 
                                                         await StreamHelp.WriteEncrypted(stream, reply, AESkeysUsingClients[client]);
-                                                        await Task.Run(() => connectClientToGame(client));
+                                                        await Task.Run(() => connectClientToGame(client, username));
                                                         //possibly return here
                                                     }
                                                     else
@@ -513,32 +517,7 @@ namespace YoavProject
                                             await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
                                         }
                                         Console.WriteLine((nowInQueue == maxQueue) + " " + (nowInQueue == currentlyOnline) + " " + nowInQueue + " " + currentlyOnline);
-                                        if (nowInQueue == maxQueue || nowInQueue == currentlyOnline)
-                                        {
-                                            Console.WriteLine("sending message of start countdown");
-                                            byte[] message = new byte[1];
-                                            message[0] = (byte)Data.CountdownStart;
-                                            startingGame = true;
-                                            Invoke((MethodInvoker)delegate
-                                            {
-                                                GameCountdown.Start();
-                                            });
-                                            
-                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
-                                        }
-                                        if (startingGame && nowInQueue < maxQueue && nowInQueue != currentlyOnline)
-                                        {
-                                            Console.WriteLine("sending message of stop countdown");
-                                            byte[] message = new byte[1];
-                                            message[0] = (byte)Data.CountdownStop;
-                                            startingGame = false;
-                                            Invoke((MethodInvoker)delegate
-                                            {
-                                                GameCountdown.Stop();
-                                            });
-
-                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
-                                        }
+                                        checkIfGameCanStart(nowInQueue);
                                         
                                     }
                                     break;
@@ -549,7 +528,72 @@ namespace YoavProject
                     }
                 }
             }
-            catch (Exception e) { } //TODO ADD
+            catch (IOException ioEx)
+            {
+                // Likely a disconnection or network error
+                Console.WriteLine("IO Exception (client likely disconnected): " + ioEx.Message);
+            }
+            catch (SocketException sockEx)
+            {
+                Console.WriteLine("Socket exception (client likely disconnected): " + sockEx.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Unexpected error: " + ex.Message);
+            }
+            finally
+            {
+                Console.WriteLine("Cleaning up client connection.");
+                client.Close();
+                int nowInQueue = 0;
+                lock (clientsLock)
+                {
+                    udpEndpointsUsingID.Remove(IDUsingClients[client]);
+                    AESkeysUsingClients.Remove(client);
+                    playersUsingID.Remove(IDUsingClients[client]);
+                    allClients.Remove(client);
+                    JsonHandler.disconnectUser(usernameUsingID[IDUsingClients[client]]);
+                    currentlyOnline--;
+                    if (IDsInGameOrQueue.TryGetValue(IDUsingClients[client], out int id))
+                    {
+                        IDsInGameOrQueue.Remove(id);
+                        nowInQueue = IDsInGameOrQueue.Count;
+                        checkIfGameCanStart(nowInQueue);
+                    }
+                    IDUsingClients.Remove(client);
+                }
+                
+            }
+        }
+
+        private async void checkIfGameCanStart(int nowInQueue)
+        {
+            if (nowInQueue == maxQueue || nowInQueue == currentlyOnline)
+            {
+                Console.WriteLine("sending message of start countdown");
+                byte[] message = new byte[1];
+                message[0] = (byte)Data.CountdownStart;
+                startingGame = true;
+                Invoke((MethodInvoker)delegate
+                {
+                    GameCountdown.Start();
+                });
+
+                await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
+            }
+            if (startingGame && nowInQueue < maxQueue && nowInQueue != currentlyOnline)
+            {
+                Console.WriteLine("sending message of stop countdown");
+                byte[] message = new byte[1];
+                message[0] = (byte)Data.CountdownStop;
+                startingGame = false;
+                Invoke((MethodInvoker)delegate
+                {
+                    GameCountdown.Stop();
+                });
+
+                await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
+            }
         }
 
         private async void GameLoop_Tick(object sender, EventArgs e)
@@ -576,6 +620,8 @@ namespace YoavProject
             byte[] message = new byte[1];
             message[0] = (byte)Data.GameStart;
             await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
+            state.setUpForGameMap();
+            broadcastGameState();
         }
     }
 }

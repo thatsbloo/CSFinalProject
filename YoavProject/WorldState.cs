@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 
 namespace YoavProject
@@ -80,6 +81,15 @@ namespace YoavProject
         public Dictionary<int, InteractableObject> getObjectsDictionary()
         {
             return new Dictionary<int, InteractableObject>(interactables); // Caller gets a copy
+        }
+
+        public void setUpForGameMap()
+        {
+            this.clearWorldMap();
+            this.addWorldInteractable(1, new Workstation(new PointF(0, 2)));
+            this.addWorldInteractable(2, new Workstation(new PointF(0, 9)));
+            this.addWorldInteractable(3, new Workstation(new PointF(11, 2)));
+            this.addWorldInteractable(4, new Workstation(new PointF(11, 9)));
         }
 
     }

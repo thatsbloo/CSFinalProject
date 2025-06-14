@@ -24,8 +24,7 @@ namespace YoavProject
 
         public static bool isDebugMode { get; private set; }
 
-        public static bool connected { get; private set; }
-
+        public static volatile bool connected;
         public static bool signup { get; private set; }
 
         private static readonly object playersLock = new object();
@@ -34,8 +33,9 @@ namespace YoavProject
         private string RSApublicKey;
 
         private static string AESkey;
-        public static bool isGameOrQueue = false;
-        private HashSet<int> IdInGameOrQueue = new HashSet<int>();
+        public static volatile bool isQueue = false;
+        public static volatile bool isGame = false;
+        public static HashSet<int> IdInGameOrQueue = new HashSet<int>();
 
         public Game()
         {
@@ -153,74 +153,9 @@ namespace YoavProject
                     Console.WriteLine("Finished Player sync");
                 }
 
-
-                int interactablecount = buffer[2 + playerCount * 10];
-                Console.WriteLine(interactablecount);
-                int stateoffset = 0;
-                for (int i = 0; i < interactablecount; i++)
-                {
-                    int id = (int)buffer[3 + playerCount * 10 + stateoffset];
-                    byte type = buffer[4 + playerCount * 10 + stateoffset];
-                    Console.WriteLine($"type: {type} id: {id}");
-                    switch ((InteractableObject.Types)type)
-                    {
-                        case InteractableObject.Types.Table:
-                            byte[] tbytes = new byte[20];
-                            Array.Copy(buffer, 5 + playerCount * 10 + stateoffset, tbytes, 0, tbytes.Length);
-                            stateoffset += 2 + tbytes.Length;
-                            Table.Variation var = (Table.Variation)tbytes[0];
-                            int chairs = (int)tbytes[1];
-                            int takenChairs = (int)tbytes[2];
-                            int platesOnTable = (int)tbytes[3];
-                            byte[] tposx = new byte[4];
-                            byte[] tposy = new byte[4];
-                            byte[] tsizew = new byte[4];
-                            byte[] tsizeh = new byte[4];
-                            Array.Copy(tbytes, 4, tposx, 0, 4);
-                            Array.Copy(tbytes, 8, tposy, 0, 4);
-                            Array.Copy(tbytes, 12, tsizew, 0, 4);
-                            Array.Copy(tbytes, 16, tsizeh, 0, 4);
-                            if (!BitConverter.IsLittleEndian)
-                            {
-                                Array.Reverse(tposx);
-                                Array.Reverse(tposy);
-                                Array.Reverse(tsizew);
-                                Array.Reverse(tsizeh);
-                            }
-
-                            PointF tpos = new PointF(BitConverter.ToSingle(tposx, 0), BitConverter.ToSingle(tposy, 0));
-                            SizeF tsize = new SizeF(BitConverter.ToSingle(tsizew, 0), BitConverter.ToSingle(tsizeh, 0));
-
-                            lock (stateLock)
-                                board.state.addWorldInteractable(id, new Table(tpos, tsize, chairs, takenChairs, platesOnTable, var));
-                            break;
-                        case InteractableObject.Types.Workstation:
-                            byte[] wbytes = new byte[9];
-                            Array.Copy(buffer, 5 + playerCount * 10 + stateoffset, wbytes, 0, wbytes.Length);
-                            stateoffset += 2 + wbytes.Length;
-                            Workstation.stationType stationType = (Workstation.stationType)wbytes[0];
-                            byte[] wposx = new byte[4];
-                            byte[] wposy = new byte[4];
-                            byte[] wsizew = new byte[4];
-                            byte[] wsizeh = new byte[4];
-                            Array.Copy(wbytes, 1, wposx, 0, 4);
-                            Array.Copy(wbytes, 5, wposy, 0, 4);
-                            if (!BitConverter.IsLittleEndian)
-                            {
-                                Array.Reverse(wposx);
-                                Array.Reverse(wposy);
-                            }
-
-                            PointF wpos = new PointF(BitConverter.ToSingle(wposx, 0), BitConverter.ToSingle(wposy, 0));
-                            lock (stateLock)
-                                board.state.addWorldInteractable(id, new Workstation(wpos, stationType));
-                            break;
-                        default:
-                            break;
-                    }
-                }
+                syncWorldState(buffer, 2 + playerCount * 10);
             }
-
+            connected = true;
             _ = Task.Run(listenForUdpUpdatesAsync);
             _ = Task.Run(listenForTcpUpdatesAsync);
         }
@@ -393,7 +328,7 @@ namespace YoavProject
                     }
                     else
                     {
-                        Console.WriteLine($"Received update for unknown player {data[2+offset]}");
+                        //Console.WriteLine($"Received update for unknown player {data[2+offset]}");
                     }
                 }
                 
@@ -457,11 +392,11 @@ namespace YoavProject
                         case Data.EnterQueue:
                             Console.WriteLine("Emterqueue");
                             if (databytebytes[1] == (byte)clientId)
-                                isGameOrQueue = !isGameOrQueue;
-                            Console.WriteLine(databytebytes[1] + " " + isGameOrQueue);
+                                isQueue = !isQueue;
+                            Console.WriteLine(databytebytes[1] + " " + isQueue);
                             break;
                         case Data.CountdownStart:
-                            if (isGameOrQueue)
+                            if (isQueue)
                             {
                                 Invoke((MethodInvoker)delegate
                                 {
@@ -474,10 +409,25 @@ namespace YoavProject
                         case Data.CountdownStop:
                             Invoke((MethodInvoker)delegate
                             {
-                                board.countdownNum = 6;
                                 GameCountdown.Stop();
+                                board.countdownNum = 6;
                             });
-
+                            break;
+                        case Data.GameStart:
+                            if (isQueue)
+                            {
+                                Invoke((MethodInvoker)delegate
+                                {
+                                    GameCountdown.Stop();
+                                    board.countdownNum = 6;
+                                });
+                                isQueue = false;
+                                isGame = true;
+                            }
+                            break;
+                        case Data.WorldStateSyncGame:
+                            if (isGame)
+                                syncWorldState(databytebytes, 1);
                             break;
                         default:
                             break;
@@ -486,6 +436,75 @@ namespace YoavProject
                 }
             }
             catch (Exception ex) { Console.WriteLine(ex.ToString()); }
+        }
+
+        private async void syncWorldState(byte[] buffer, int startIndex = 0)
+        {
+            int interactablecount = buffer[startIndex];
+            Console.WriteLine(interactablecount);
+            int stateoffset = 0;
+            for (int i = 0; i < interactablecount; i++)
+            {
+                int id = (int)buffer[1 + startIndex + stateoffset];
+                byte type = buffer[2 + startIndex + stateoffset];
+                Console.WriteLine($"type: {type} id: {id}");
+                switch ((InteractableObject.Types)type)
+                {
+                    case InteractableObject.Types.Table:
+                        byte[] tbytes = new byte[20];
+                        Array.Copy(buffer, 3 + startIndex + stateoffset, tbytes, 0, tbytes.Length);
+                        stateoffset += 2 + tbytes.Length;
+                        Table.Variation var = (Table.Variation)tbytes[0];
+                        int chairs = (int)tbytes[1];
+                        int takenChairs = (int)tbytes[2];
+                        int platesOnTable = (int)tbytes[3];
+                        byte[] tposx = new byte[4];
+                        byte[] tposy = new byte[4];
+                        byte[] tsizew = new byte[4];
+                        byte[] tsizeh = new byte[4];
+                        Array.Copy(tbytes, 4, tposx, 0, 4);
+                        Array.Copy(tbytes, 8, tposy, 0, 4);
+                        Array.Copy(tbytes, 12, tsizew, 0, 4);
+                        Array.Copy(tbytes, 16, tsizeh, 0, 4);
+                        if (!BitConverter.IsLittleEndian)
+                        {
+                            Array.Reverse(tposx);
+                            Array.Reverse(tposy);
+                            Array.Reverse(tsizew);
+                            Array.Reverse(tsizeh);
+                        }
+
+                        PointF tpos = new PointF(BitConverter.ToSingle(tposx, 0), BitConverter.ToSingle(tposy, 0));
+                        SizeF tsize = new SizeF(BitConverter.ToSingle(tsizew, 0), BitConverter.ToSingle(tsizeh, 0));
+
+                        lock (stateLock)
+                            board.state.addWorldInteractable(id, new Table(tpos, tsize, chairs, takenChairs, platesOnTable, var));
+                        break;
+                    case InteractableObject.Types.Workstation:
+                        byte[] wbytes = new byte[9];
+                        Array.Copy(buffer, 3 + startIndex + stateoffset, wbytes, 0, wbytes.Length);
+                        stateoffset += 2 + wbytes.Length;
+                        Workstation.stationType stationType = (Workstation.stationType)wbytes[0];
+                        byte[] wposx = new byte[4];
+                        byte[] wposy = new byte[4];
+                        byte[] wsizew = new byte[4];
+                        byte[] wsizeh = new byte[4];
+                        Array.Copy(wbytes, 1, wposx, 0, 4);
+                        Array.Copy(wbytes, 5, wposy, 0, 4);
+                        if (!BitConverter.IsLittleEndian)
+                        {
+                            Array.Reverse(wposx);
+                            Array.Reverse(wposy);
+                        }
+
+                        PointF wpos = new PointF(BitConverter.ToSingle(wposx, 0), BitConverter.ToSingle(wposy, 0));
+                        lock (stateLock)
+                            board.state.addWorldInteractable(id, new Workstation(wpos, stationType));
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
 
         private void Game_Resize(object sender, EventArgs e)

@@ -276,7 +276,7 @@ namespace YoavProject
 
             drawBackground(e);
 
-            Random rnd = new Random();
+            //Random rnd = new Random();
 
             foreach (InteractableObject obj in state.getInteractableObjects())
             {
@@ -288,18 +288,27 @@ namespace YoavProject
             //Console.WriteLine(player.position);
             if (Game.connected)
             {
-                foreach (var pair  in onlinePlayers)
+                foreach (var pair in onlinePlayers)
                 {
-                    pair.Value.draw(e.Graphics);
+                    if (Game.isGame)
+                    {
+                        if (Game.IdInGameOrQueue.TryGetValue(pair.Key, out int id))
+                        {
+                            pair.Value.draw(e.Graphics);
+                        }
+                    } else
+                    {
+                        pair.Value.draw(e.Graphics);
+                    }
                 }
             }
             player.draw(e.Graphics);
 
             
             //d
-            if (countdownNum > 5 || countdownNum < 0)
+            if (countdownNum < 6 && countdownNum > 0)
             {
-                e.Graphics.DrawString(countdownNum + "", new Font("arial", 16), Brushes.Black, Width / 2, Height / 2);
+                e.Graphics.DrawString(countdownNum + "", new Font("arial", 32), Brushes.Black, Width / 2, Height / 2);
             }
         }
 
