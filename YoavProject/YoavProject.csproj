@@ -160,6 +160,8 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Resources\Background.png" />
+    <None Include="Resources\Character.png" />
+    <None Include="Resources\Logo.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

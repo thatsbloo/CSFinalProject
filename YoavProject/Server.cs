@@ -718,8 +718,8 @@ namespace YoavProject
             var startPositions = new PointF[]
             {
                 new PointF(1, 3),
-                new PointF(10, 9),
-                new PointF(10, 3),
+                new PointF(9, 9),
+                new PointF(9, 3),
                 new PointF(1, 9)
             };
             TcpClient[] clientsinqueue;
@@ -832,8 +832,8 @@ namespace YoavProject
                 var startPositions = new PointF[]
                 {
                 new PointF(1, 3),
-                new PointF(10, 9),
-                new PointF(10, 3),
+                new PointF(9, 9),
+                new PointF(9, 3),
                 new PointF(1, 9)
                 };
 

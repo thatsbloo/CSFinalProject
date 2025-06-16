@@ -43,7 +43,7 @@ namespace YoavProject
             backgroundSpriteSheet = Properties.Resources.Background;
 
             rows = 9;
-            cols = 12; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))
+            cols = 11; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))
             wallHeight = 2;
 
             player = new Player("");
@@ -317,7 +317,6 @@ namespace YoavProject
 
         private void drawBackground(PaintEventArgs e)
         {
-            Pen p = new Pen(Color.Blue, 1);
             for (int i = 0; i < cols; i++)
             {
                 for (int j = 0; j < rows; j++)

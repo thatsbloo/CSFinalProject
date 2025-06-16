@@ -88,8 +88,8 @@ namespace YoavProject
             clearWorldMap();
             addWorldInteractable(1, new Workstation(new PointF(0, 3)));
             addWorldInteractable(2, new Workstation(new PointF(0, 9)));
-            addWorldInteractable(3, new Workstation(new PointF(11, 3)));
-            addWorldInteractable(4, new Workstation(new PointF(11, 9)));
+            addWorldInteractable(3, new Workstation(new PointF(10, 3)));
+            addWorldInteractable(4, new Workstation(new PointF(10, 9)));
         }
 
         public InteractableObject getInteractableObject(int id)

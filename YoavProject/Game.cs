@@ -61,6 +61,7 @@ namespace YoavProject
             board = new GameBoard();
 
             login = new RegisterLogin();
+            
             login.loginPressed += handleLogin;
             login.registerPressed += handleRegister;
 
@@ -77,6 +78,7 @@ namespace YoavProject
             //Controls.Add(board);
             Controls.Add(login);
             this.ClientSize = new Size(64 * board.cols, 64 * board.rows);
+            login.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
             board.setDimensions(this.ClientSize.Width, this.ClientSize.Height);
             //Controls.Add(self);
 

@@ -66,6 +66,7 @@ namespace YoavProject
         public int platesHeld;
         public string username;
         public int id;
+        public System.Drawing.Image Character = Properties.Resources.Character;
         public Player(string username, int id = 0)
         {
             this.size = new SizeF(0.6f, 0.9f);
@@ -93,7 +94,7 @@ namespace YoavProject
                 this.platesHeld--;
             }
         }
-
+        
         public override void draw(Graphics g)
         {
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
@@ -104,12 +105,23 @@ namespace YoavProject
             //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
             RectangleF rect = new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
-            g.FillRectangle(Brushes.Blue, rect);
-            //for (int i = 0; i < platesHeld; i++) 
-            //{
-            //    g.FillRectangle(Brushes.Red, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
-            //}
-            g.DrawString(platesHeld + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
+            //g.FillRectangle(Brushes.Blue, rect);
+            switch (platesHeld)
+            {
+                case 1:
+                    g.DrawImage(Character, rect, new Rectangle(32, 0, 32, 48), GraphicsUnit.Pixel);
+                    break;
+                case 2:
+                    g.DrawImage(Character, rect, new Rectangle(64, 0, 32, 48), GraphicsUnit.Pixel);
+                    break;
+                case 3:
+                    g.DrawImage(Character, rect, new Rectangle(96, 0, 32, 48), GraphicsUnit.Pixel);
+                    break;
+                default:
+                    g.DrawImage(Character, rect, new Rectangle(0, 0, 32, 48), GraphicsUnit.Pixel);
+                    break;
+            }
+            //g.DrawString(platesHeld + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
             //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
             string str = username;
             Console.WriteLine(Game.IdInGameOrQueue.Contains(this.id));
@@ -187,7 +199,7 @@ namespace YoavProject
 
         public Table(PointF position, SizeF? size = null, int plates = 3)
         {
-            this.size = size ?? new SizeF(3, 2);
+            this.size = size ?? new SizeF(2, 1);
             this.hitboxSize = this.size;
             this.position = position;
             this.platesOnTable = plates;
@@ -201,9 +213,21 @@ namespace YoavProject
 
             //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
-
-            g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
-            g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
+            if (this.size.Width == 2)
+                g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 224, 64, 32), GraphicsUnit.Pixel);
+            else if (this.size.Width == 1)
+                g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(96, 224, 32, 32), GraphicsUnit.Pixel);
+            else
+                g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
+            for (int i = 1; i <= this.platesOnTable; i++)
+            {
+                if (this.size.Width == 2)
+                    g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(128, 224+32*i, 64, 32), GraphicsUnit.Pixel);
+                else if (this.size.Width == 1)
+                    g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(96, 224 + 32 * i, 32, 32), GraphicsUnit.Pixel);
+            }
+            
+            //g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
 
             base.draw(g);
         }
