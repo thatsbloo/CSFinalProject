@@ -76,7 +76,7 @@ namespace YoavProject
 
         public static byte[] encryptAES(byte[] message, string stringKey)
         {
-            byte[] key = Convert.FromBase64String(stringKey);
+            byte[] key = Convert.FromBase64String(stringKey); //here
 
             using (Aes aes = Aes.Create())
             {

@@ -124,7 +124,7 @@ namespace YoavProject
                     string aesKey = Convert.ToBase64String(Encryption.decryptRSA(aeskeyenc, RSAprivate));
                     AESkeysUsingClients.Add(client, aesKey);
 
-                    await Task.Run(() => handleClientTcpAsync(client));
+                    _ = Task.Run(() => handleClientTcpAsync(client));
                     
                 }
                 catch (Exception e)
@@ -190,7 +190,7 @@ namespace YoavProject
                 foreach (TcpClient existingClient in clientSnapshot.Keys)
                 {
                     Console.WriteLine("ahhhhh");
-                    await StreamHelp.WriteEncrypted(existingClient.GetStream(), newPlayerBytes.ToArray(), AESkeysUsingClients[client]);
+                    await StreamHelp.WriteEncrypted(existingClient.GetStream(), newPlayerBytes.ToArray(), AESkeysUsingClients[existingClient]);
                 }
                 Console.WriteLine($"Client connected with ID {clientId}");
 

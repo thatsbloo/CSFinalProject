@@ -58,7 +58,7 @@
             // 
             // GameRound
             // 
-            this.GameRound.Interval = 10000;
+            this.GameRound.Interval = 15000;
             this.GameRound.Tick += new System.EventHandler(this.GameRound_Tick);
             // 
             // GameInterval

@@ -89,15 +89,15 @@ namespace YoavProject
             UDPclient = new UdpClient();
 
             byte[] rsakeylength = await StreamHelp.ReadExactlyAsync(stream, 4);
-            
+            Console.WriteLine("hey");
             if (!BitConverter.IsLittleEndian)
                 Array.Reverse(rsakeylength);
-
+            Console.WriteLine("hey2");
             int rsaactuallength = BitConverter.ToInt32(rsakeylength, 0);
             byte[] RSApublic = await StreamHelp.ReadExactlyAsync(stream, rsaactuallength);
-
+            Console.WriteLine("hey3");
             RSApublicKey = Convert.ToBase64String(RSApublic);
-
+            Console.WriteLine("hey4");
             AESkey = Encryption.generateAESkey();
 
             byte[] AESkeyEncrypted = Encryption.encryptRSA(Convert.FromBase64String(AESkey), RSApublicKey);
@@ -134,36 +134,43 @@ namespace YoavProject
             if (packetType == (byte)Data.CompleteStateSync) // state sync
             {
                 int playerCount = buffer[1];
+                int offset = 2;
 
                 //byte[] playersBuffer = Array.Copy(); // each player: 1 byte data.position + 1 byte id + + pos 4 float X + 4 float Y = 10 bytes playerCount * 10
 
                 for (int i = 0; i < playerCount; i++)
                 {
-                    int offset = i * 10;
-                    byte id = (byte)buffer[offset+2];
+                    byte id = buffer[offset];
+                    offset += 1;
 
                     if (!BitConverter.IsLittleEndian)
                     {
-                        Array.Reverse(buffer, offset + 4, 4);
+                        Array.Reverse(buffer, offset, 4); // posX
+                        Array.Reverse(buffer, offset + 4, 4); // posY
                         Array.Reverse(buffer, offset + 8, 4);
                     }
 
-                    float x = BitConverter.ToSingle(buffer, offset + 4);
-                    float y = BitConverter.ToSingle(buffer, offset + 8);
+                    float x = BitConverter.ToSingle(buffer, offset);
+                    float y = BitConverter.ToSingle(buffer, offset + 4);
+                    int usernamelength = BitConverter.ToInt32(buffer, offset + 8);
+                    offset += 12;
 
-                    Player p = new Player(this.username, clientId);
-                    PointF pos = new PointF(x, y);
-                    p.position = pos;
+                    string username = Encoding.UTF8.GetString(buffer, offset, usernamelength);
+                    offset += usernamelength;
+
+                    Player p = new Player(username, id);
+                    p.position = new PointF(x, y);
 
                     lock (playersLock)
                     {
-                        GameBoard.onlinePlayers.Add(id, p);
+                        GameBoard.onlinePlayers[id] = p;
                         online_players.Add(p);
                     }
-                    Console.WriteLine("Finished Player sync");
+
+                    Console.WriteLine($"Synced Player: {username}, ID: {id}, Pos: ({x}, {y})");
                 }
 
-                syncWorldState(buffer, 2 + playerCount * 10);
+                syncWorldState(buffer, offset);
             }
             connected = true;
             _ = Task.Run(listenForUdpUpdatesAsync);
@@ -278,7 +285,7 @@ namespace YoavProject
             data.AddRange(usernameLengthBytes);
             data.AddRange(Encoding.UTF8.GetBytes(username));
             data.AddRange(Encoding.UTF8.GetBytes(pass));
-
+            Console.WriteLine(AESkey);
             await StreamHelp.WriteEncrypted(stream, data.ToArray(), AESkey);
         }
 
