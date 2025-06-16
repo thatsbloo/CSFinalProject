@@ -36,7 +36,9 @@ namespace YoavProject
         public static volatile bool isQueue = false;
         public static volatile bool isGame = false;
         public static HashSet<int> IdInGameOrQueue = new HashSet<int>();
+        public static volatile bool canMove = true;
 
+        public static UdpClient UDPclient;
         public Game()
         {
             InitializeComponent();
@@ -79,6 +81,7 @@ namespace YoavProject
             UDP.serverDoesntExist();
             tcpClient = new TcpClient(UDP.serverAddress.ToString(), StreamHelp.tcpPort);
             NetworkStream stream = tcpClient.GetStream();
+            UDPclient = new UdpClient();
 
             byte[] rsakeylength = await StreamHelp.ReadExactlyAsync(stream, 4);
             
@@ -263,7 +266,7 @@ namespace YoavProject
             {
                 Array.Reverse(usernameLengthBytes);
             }
-            data.Add((byte)Registration.Login);
+            data.Add((byte)Registration.Register);
             data.AddRange(usernameLengthBytes);
             data.AddRange(Encoding.UTF8.GetBytes(username));
             data.AddRange(Encoding.UTF8.GetBytes(pass));
@@ -381,12 +384,21 @@ namespace YoavProject
                             break;
                         case Data.ObjInteractSuccess:
                             //res = await StreamHelp.ReadExactlyAsync(stream, 2);
-                            if (databytebytes[0] == (byte)InteractionTypes.pickupPlate)
+                            lock (stateLock)
                             {
-                                board.player.addPlate();
                                 int interactableId = (int)databytebytes[1];
-                                board.state.interactWith(interactableId);
+                                if (board.state.getInteractableObject(interactableId) is Table)
+                                {
+                                    board.player.addPlate();
+                                    board.state.interactWith(interactableId);
+                                }
+                                else if (board.state.getInteractableObject(interactableId) is Workstation)
+                                {
+                                    board.player.removePlate();
+                                    board.state.interactWith(interactableId);
+                                }
                             }
+                            
 
                             break;
                         case Data.EnterQueue:
@@ -427,7 +439,23 @@ namespace YoavProject
                             break;
                         case Data.WorldStateSyncGame:
                             if (isGame)
-                                syncWorldState(databytebytes, 1);
+                            {
+                                lock (stateLock)
+                                {
+                                    syncWorldState(databytebytes, 1);
+                                }
+                            }
+                            break;
+                        case Data.Interval:
+                            canMove = !canMove;
+                            break;
+                        case Data.Position:
+                            if (!BitConverter.IsLittleEndian)
+                            {
+                                Array.Reverse(databytebytes, 1, 4);
+                                Array.Reverse(databytebytes, 5, 4);
+                            }
+                            board.player.position = new PointF(BitConverter.ToSingle(databytebytes, 1), BitConverter.ToSingle(databytebytes, 5));
                             break;
                         default:
                             break;
@@ -440,6 +468,7 @@ namespace YoavProject
 
         private async void syncWorldState(byte[] buffer, int startIndex = 0)
         {
+            board.state.clearWorldMap();
             int interactablecount = buffer[startIndex];
             Console.WriteLine(interactablecount);
             int stateoffset = 0;
@@ -451,21 +480,18 @@ namespace YoavProject
                 switch ((InteractableObject.Types)type)
                 {
                     case InteractableObject.Types.Table:
-                        byte[] tbytes = new byte[20];
+                        byte[] tbytes = new byte[17];
                         Array.Copy(buffer, 3 + startIndex + stateoffset, tbytes, 0, tbytes.Length);
                         stateoffset += 2 + tbytes.Length;
-                        Table.Variation var = (Table.Variation)tbytes[0];
-                        int chairs = (int)tbytes[1];
-                        int takenChairs = (int)tbytes[2];
-                        int platesOnTable = (int)tbytes[3];
+                        int platesOnTable = (int)tbytes[0];
                         byte[] tposx = new byte[4];
                         byte[] tposy = new byte[4];
                         byte[] tsizew = new byte[4];
                         byte[] tsizeh = new byte[4];
-                        Array.Copy(tbytes, 4, tposx, 0, 4);
-                        Array.Copy(tbytes, 8, tposy, 0, 4);
-                        Array.Copy(tbytes, 12, tsizew, 0, 4);
-                        Array.Copy(tbytes, 16, tsizeh, 0, 4);
+                        Array.Copy(tbytes, 1, tposx, 0, 4);
+                        Array.Copy(tbytes, 5, tposy, 0, 4);
+                        Array.Copy(tbytes, 9, tsizew, 0, 4);
+                        Array.Copy(tbytes, 13, tsizeh, 0, 4);
                         if (!BitConverter.IsLittleEndian)
                         {
                             Array.Reverse(tposx);
@@ -478,7 +504,7 @@ namespace YoavProject
                         SizeF tsize = new SizeF(BitConverter.ToSingle(tsizew, 0), BitConverter.ToSingle(tsizeh, 0));
 
                         lock (stateLock)
-                            board.state.addWorldInteractable(id, new Table(tpos, tsize, chairs, takenChairs, platesOnTable, var));
+                            board.state.addWorldInteractable(id, new Table(tpos, tsize, platesOnTable));
                         break;
                     case InteractableObject.Types.Workstation:
                         byte[] wbytes = new byte[9];
@@ -521,6 +547,7 @@ namespace YoavProject
 
         private void Game_FormClosing(object sender, FormClosingEventArgs e)
         {
+            connected = false;
             tcpClient.Close();
         }
 

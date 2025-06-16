@@ -98,18 +98,21 @@ namespace YoavProject
             {
                 direction.Item1 += 1;
             }
-            movePlayer(direction);
+            if (Game.canMove)
+                movePlayer(direction);
             if (justPressedKeys.Contains(Keys.E))
             {
+                Console.WriteLine("E");
                 if (highlightedID != -1)
                 {
+                    Console.WriteLine("YO");
                     if (state.canInteractWith(highlightedID))
                     {
-                        byte[] message = new byte[4];
+                        Console.WriteLine("AYY");
+                        byte[] message = new byte[2];
                         message[0] = (byte)Data.ObjInteract;
-                        message[1] = (byte)InteractionTypes.pickupPlate;
-                        message[2] = (byte)Game.clientId;
-                        message[3] = (byte)highlightedID;
+                        //message[2] = (byte)Game.clientId;
+                        message[1] = (byte)highlightedID;
                         Game.sendMessage(message);
                         //player.addPlate();
                     }
@@ -251,7 +254,7 @@ namespace YoavProject
             if (Game.connected)
             {
                 byte[] messageToSend = UDP.createByteMessage(Data.Position, pos.X, pos.Y);
-                UDP.sendToServer(messageToSend);
+                UDP.sendToServer(messageToSend, Game.UDPclient);
             }
             player.position = pos;
 

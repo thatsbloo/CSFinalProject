@@ -49,10 +49,10 @@ namespace YoavProject
             switch (mapNumber)
             {
                 case 1:
-                    jsonString = System.Text.Encoding.UTF8.GetString(Properties.Resources.Map1);
+                    jsonString = Encoding.UTF8.GetString(Properties.Resources.Map1).TrimStart('\uFEFF');
                     break;
                 default:
-                    jsonString = System.Text.Encoding.UTF8.GetString(Properties.Resources.Map1); // Default fallback
+                    jsonString = Encoding.UTF8.GetString(Properties.Resources.Map1).TrimStart('\uFEFF'); // Default fallback
                     break;
             }
             loadMap(jsonString, state);
@@ -69,7 +69,7 @@ namespace YoavProject
             {
                 int objId = int.Parse(pair.Key);
                 var objData = pair.Value;
-                Table table = new Table(position: new PointF(objData.X, objData.Y), size: new SizeF(objData.Width, objData.Height));
+                Table table = new Table(position: new PointF(objData.X+2, objData.Y+3), size: new SizeF(objData.Width, objData.Height));
                 state.addWorldInteractable(objId, table);
             }
         }

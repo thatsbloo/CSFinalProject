@@ -78,6 +78,15 @@ namespace YoavProject
             }
         }
 
+        public void removePlate()
+        {
+            if (this.platesHeld > 0)
+            {
+                Console.WriteLine("aa");
+                this.platesHeld--;
+            }
+        }
+
         public override void draw(Graphics g)
         {
             
@@ -153,23 +162,16 @@ namespace YoavProject
 
     public class Table : InteractableObject
     {
-        public enum Variation: byte { lobby = 0, var1 = 1, var2 = 2, var3 = 3 }
 
-        public int chairs;
-        public int takenChairs;
         private int platesOnTable;
-        Variation var;
         public Table() : this(new PointF(0f, 0f)) { }
 
-        public Table(PointF position, SizeF? size = null, int chairs = 4, int takenChairs = 0, int plates = 3, Variation var = Variation.lobby)
+        public Table(PointF position, SizeF? size = null, int plates = 3)
         {
             this.size = size ?? new SizeF(3, 2);
             this.hitboxSize = this.size;
             this.position = position;
-            this.chairs = chairs;
-            this.takenChairs = takenChairs;
             this.platesOnTable = plates;
-            this.var = var;
             this.onInteract += interactWithMe;
         }
         public override void draw(Graphics g)
@@ -182,46 +184,27 @@ namespace YoavProject
 
 
             g.DrawImage(GameBoard.backgroundSpriteSheet, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height), new Rectangle(0, 192, 96, 64), GraphicsUnit.Pixel);
-            if (this.var == Variation.lobby)
-                g.DrawString(0 + "/" + chairs + " taken", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
-            else 
-                g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
+            g.DrawString(platesOnTable + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
 
             base.draw(g);
         }
 
         private bool interactWithMe()
         {
-            if (this.var == Variation.lobby)
+            if (this.platesOnTable > 0)
             {
-                if (this.chairs > this.takenChairs)
-                {
-                    this.takenChairs++;
-                    return true;
-                }
-                return false;
-            }
-            else
-            {
-                if (this.platesOnTable > 0)
-                {
-                    this.platesOnTable--;
-                    Console.WriteLine("New plate count: " + platesOnTable);
-                    return true;
-                }
+                this.platesOnTable--;
                 Console.WriteLine("New plate count: " + platesOnTable);
-                return false;
+                return true;
             }
+            Console.WriteLine("New plate count: " + platesOnTable);
+            return false;
         }
 
         public override byte[] getByteData()
         {
             List<byte> data = new List<byte>();
             data.Add((byte)Types.Table);
-
-            data.Add((byte)this.var);
-            data.Add((byte)chairs);
-            data.Add((byte)takenChairs);
             data.Add((byte)platesOnTable);
             byte[] posx = BitConverter.GetBytes(position.X);
             byte[] posy = BitConverter.GetBytes(position.Y);
@@ -249,16 +232,19 @@ namespace YoavProject
     class Workstation : InteractableObject
     {
         public enum stationType: byte { empty = 0, pasta = 1, pizza = 2, burger = 3, coffee = 4, sushiMAYBE = 5 }
+        private int platesHeld = 0;
 
         public stationType type { get; set; }
         public Workstation() : this(new PointF(0f, 0f)) { }
 
-        public Workstation(PointF position, stationType type = stationType.empty)
+        public Workstation(PointF position, stationType type = stationType.empty, int platesHeld = 0)
         {
             this.size = new SizeF(1, 1.25f);
             this.hitboxSize = this.size;
             this.type = type;
             this.position = position;
+            this.onInteract += interactWithMe;
+            this.platesHeld = platesHeld;
         }
         public override void draw(Graphics g)
         {
@@ -285,6 +271,18 @@ namespace YoavProject
             }
 
             base.draw(g);
+        }
+
+        private bool interactWithMe()
+        {
+            this.platesHeld++;
+            Console.WriteLine("New plate count: " + platesHeld);
+            return true;
+        }
+
+        public int getPlates()
+        {
+            return platesHeld;
         }
 
         public override byte[] getByteData()

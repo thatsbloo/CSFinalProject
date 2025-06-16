@@ -58,11 +58,13 @@
             // 
             // GameRound
             // 
-            this.GameRound.Interval = 15000;
+            this.GameRound.Interval = 10000;
+            this.GameRound.Tick += new System.EventHandler(this.GameRound_Tick);
             // 
             // GameInterval
             // 
-            this.GameInterval.Interval = 5000;
+            this.GameInterval.Interval = 3000;
+            this.GameInterval.Tick += new System.EventHandler(this.GameInterval_Tick);
             // 
             // Server
             // 

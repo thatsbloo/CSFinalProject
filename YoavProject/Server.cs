@@ -12,6 +12,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 
 namespace YoavProject
 {
@@ -33,6 +34,7 @@ namespace YoavProject
 
         private GameBoard board;
         private static WorldState state;
+        private static WorldState defaultstate;
 
         public static int totalClients = 0;
         public static int currentlyOnline = 0;
@@ -46,6 +48,8 @@ namespace YoavProject
         private bool inGame;
         private bool startingGame;
         private List<int> IDsInGameOrQueue; 
+        private int round = 0;
+        private Dictionary<int, int> scoresUsingID;
 
         private JsonHandler JsonHandler;
         public Server()
@@ -65,19 +69,21 @@ namespace YoavProject
             Console.WriteLine(RSApublic);
             JsonHandler = new JsonHandler();
             IDsInGameOrQueue = new List<int>();
+            scoresUsingID = new Dictionary<int, int>();
             inGame = false;
             startingGame = false;
             lock (stateLock)
             {
+                defaultstate = new WorldState();
                 state = new WorldState();
-                state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.lobby));
+                defaultstate.addWorldInteractable(0, new Table(new PointF(1, 5)));
                 for (int i = 1; i < 8; i++)
                 {
                     Workstation a = new Workstation(new PointF(board.cols - i, board.rows - 1));
                     if (i % 3 == 0)
                         a.type = Workstation.stationType.pasta;
                     //a.onInteract += printInteract;
-                    state.addWorldInteractable(i, a);
+                    defaultstate.addWorldInteractable(i, a);
 
                 }
             }
@@ -167,8 +173,8 @@ namespace YoavProject
                 lock (stateLock) //here incase i wanna copy for another place
                 {
                     Console.WriteLine("Adding world data...");
-                    stateSyncList.Add((byte)state.getInteractableCount());
-                    stateSyncList.AddRange(state.getWorldState());
+                    stateSyncList.Add((byte)defaultstate.getInteractableCount());
+                    stateSyncList.AddRange(defaultstate.getWorldState());
                     Console.WriteLine("Finished Adding");
                 }
                 byte byteId = (byte)clientId;
@@ -448,50 +454,99 @@ namespace YoavProject
                         #endregion
                         else
                         {
+                            bool flag = false;
                             switch ((Data)databytebytes[0])
                             {
                                 case Data.ObjInteract:
                                     //buffer = await StreamHelp.ReadEncrypted(stream, AESkeysUsingClients[client]); //FIX HERE
-                                    if (databytebytes[1] == (byte)InteractionTypes.pickupPlate)
+                                    int clientId = IDUsingClients[client];
+                                    int interactableId = (int)databytebytes[1];
+                                    byte[] successinteraction = new byte[2];
+                                    flag = false;
+                                    lock (stateLock)
+                                    lock (clientsLock)
                                     {
-                                        int clientId = (int)databytebytes[2];
-                                        int interactableId = (int)databytebytes[3];
-                                        byte[] successinteraction = new byte[2];
-                                        bool flag = false;
-                                        lock (stateLock)
+                                        if (IDsInGameOrQueue.Contains(clientId) && inGame)
                                         {
-                                            if (state.interactWith(interactableId))
+                                            if (state.getInteractableObject(interactableId) is Table)
                                             {
-                                                
-                                                successinteraction[0] = (byte)Data.ObjInteractSuccess;
-                                                successinteraction[1] = (byte)interactableId;
-                                                flag = true;
+                                                if (playersUsingID[clientId].platesHeld < 3)
+                                                {
+                                                    if (state.interactWith(interactableId))
+                                                    {
+                                                            playersUsingID[clientId].addPlate();
+                                                            flag = true;
+                                                    }
+                                                }
+                                            }
+                                            else if (state.getInteractableObject(interactableId) is Workstation)
+                                            {
+                                                if (playersUsingID[clientId].platesHeld > 0)
+                                                {
+                                                    if (state.interactWith(interactableId))
+                                                    {
+                                                            playersUsingID[clientId].removePlate();
+                                                            flag = true;
+                                                    }
+                                                }
                                             }
                                         }
-                                        if (flag)
+                                        else
                                         {
-                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), successinteraction, AESkeysUsingClients);
-                                        }
-                                    } 
-                                    else if (databytebytes[1] == (byte)InteractionTypes.putdownPlate)
-                                    {
-                                        int clientId = (int)databytebytes[2];
-                                        int interactableId = (int)databytebytes[3];
-                                        byte[] successinteraction = new byte[2];
-                                        bool flag = false;
-                                        lock (stateLock)
-                                        {
-                                            if (state.interactWith(interactableId))
+                                            if (defaultstate.getInteractableObject(interactableId) is Table)
                                             {
+                                                Console.WriteLine("aa");
+                                                if (playersUsingID[clientId].platesHeld < 3)
+                                                {
+                                                    Console.WriteLine("ab");
+                                                    if (defaultstate.interactWith(interactableId))
+                                                    {
+                                                        playersUsingID[clientId].addPlate();
+                                                        Console.WriteLine("ac");
+                                                        flag = true;
+                                                    }
+                                                }
+                                            }
+                                            else if (defaultstate.getInteractableObject(interactableId) is Workstation)
+                                            {
+                                                if (playersUsingID[clientId].platesHeld > 0)
+                                                {
+                                                    if (defaultstate.interactWith(interactableId))
+                                                    {
+                                                            playersUsingID[clientId].removePlate();
+                                                            flag = true;
+                                                    }
+                                                }
+                                            }
+                                        }
 
-                                                successinteraction[0] = (byte)Data.ObjInteractSuccess;
-                                                successinteraction[1] = (byte)interactableId;
-                                                flag = true;
+                                    }
+                                    if (flag)
+                                    {
+                                        Console.WriteLine("ad");
+                                        successinteraction[0] = (byte)Data.ObjInteractSuccess;
+                                        successinteraction[1] = (byte)interactableId;
+                                        Console.WriteLine("ae");
+                                        TcpClient[] clientsinqueue;
+                                        TcpClient[] clients;
+                                        Dictionary<TcpClient, string> aeskeys;
+                                        bool flag2 = false;
+                                        lock (clientsLock)
+                                        {
+                                            clients = IDUsingClients.Where(kvp => !IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                                            aeskeys = new Dictionary<TcpClient, string>(AESkeysUsingClients);
+                                            clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                                            if (IDsInGameOrQueue.Contains(clientId) && inGame)
+                                            {
+                                                flag2 = true;
                                             }
                                         }
-                                        if (flag)
+                                        if (flag2)
                                         {
-                                            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), successinteraction, AESkeysUsingClients);
+                                            await StreamHelp.WriteEncryptedToAll(clientsinqueue, successinteraction, aeskeys);
+                                        } else
+                                        {
+                                            await StreamHelp.WriteEncryptedToAll(clients, successinteraction, aeskeys);
                                         }
                                     }
                                     break;
@@ -500,7 +555,7 @@ namespace YoavProject
                                     if (!inGame)
                                     {
                                         Console.WriteLine("Not in game");
-                                        bool flag = false;
+                                        flag = false;
                                         int nowInQueue = 0;
                                         lock (clientsLock)
                                         {
@@ -660,23 +715,209 @@ namespace YoavProject
             }
             var startPositions = new PointF[]
             {
-                new PointF(1, 2),
+                new PointF(1, 3),
                 new PointF(10, 9),
-                new PointF(10, 2),
+                new PointF(10, 3),
                 new PointF(1, 9)
             };
             TcpClient[] clientsinqueue;
+            int count= 0;
             lock (clientsLock)
             {
+                
                 clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
                 for (int i = 0; i < IDsInGameOrQueue.Count && i < startPositions.Length; i++)
                 {
+                    scoresUsingID.Add(IDsInGameOrQueue[i], 0);
                     playersUsingID[IDsInGameOrQueue[i]].position = startPositions[i];
                 }
+                count = IDsInGameOrQueue.Count;
+            }
+            byte[] interval = new byte[1];
+            interval[0] = (byte)Data.Interval;
+            List<byte> playerpos = new List<byte>();
+            playerpos.Add((byte)Data.Position);
+            for (int i = 0; i < count; i++)
+            {
+                byte[] xpos = BitConverter.GetBytes(startPositions[i].X);
+                byte[] ypos = BitConverter.GetBytes(startPositions[i].Y);
+                if (!BitConverter.IsLittleEndian)
+                {
+                    Array.Reverse(xpos);
+                    Array.Reverse(ypos);
+                }
+                playerpos.AddRange(xpos);
+                playerpos.AddRange(ypos);
+                await StreamHelp.WriteEncrypted(clientsinqueue[i].GetStream(), playerpos.ToArray(), aeskeys[clientsinqueue[i]]);
+                playerpos.Clear();
+                playerpos.Add((byte)Data.Position);
             }
             
+            await StreamHelp.WriteEncryptedToAll(clientsinqueue, interval, aeskeys);
             await StreamHelp.WriteEncryptedToAll(clientsinqueue, data.ToArray(), aeskeys);
+            Invoke((MethodInvoker)delegate
+            {
+                GameInterval.Start();
+            });
 
+        }
+
+        private async void GameInterval_Tick(object sender, EventArgs e)
+        {
+            Invoke((MethodInvoker)delegate
+            {
+                GameInterval.Stop();
+                GameRound.Start();
+            });
+            TcpClient[] clientsinqueue;
+            Dictionary<TcpClient, string> aeskeys;
+            lock (clientsLock)
+            {
+                clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                aeskeys = new Dictionary<TcpClient, string>(AESkeysUsingClients);
+            }
+            List<byte> data = new List<byte>();
+            data.Add((byte)Data.WorldStateSyncGame);
+            lock (stateLock)
+            {
+                state.setUpForGameMap();
+                MapParser.loadMapRandom(state);
+                data.Add((byte)state.getInteractableCount());
+                data.AddRange(state.getWorldState());
+            }
+            byte[] interval = new byte[1];
+            interval[0] = (byte)Data.Interval;
+            round++;
+            await StreamHelp.WriteEncryptedToAll(clientsinqueue, data.ToArray(), aeskeys);
+            await StreamHelp.WriteEncryptedToAll(clientsinqueue, interval, aeskeys);
+        }
+        
+        private async void GameRound_Tick(object sender, EventArgs e)
+        {
+            if (round <= 7)
+            {
+                Dictionary<int, int> workstationPlatesID = new Dictionary<int, int>();
+                lock (stateLock)
+                lock (clientsLock)
+                {
+                    
+                    for (int i = 1; i <= IDsInGameOrQueue.Count; i++)
+                        {
+                            Workstation a = (Workstation)state.getInteractableObject(i);
+                            workstationPlatesID.Add(i, a.getPlates());
+                        }
+
+                    var topTwo = workstationPlatesID.OrderByDescending(pair => pair.Value).Take(2).ToArray();
+                        if (topTwo.Length > 0 && scoresUsingID.ContainsKey(topTwo[0].Key))
+                        {
+                            scoresUsingID[topTwo[0].Key] += 2;
+                        }
+
+                        if (topTwo.Length > 1 && scoresUsingID.ContainsKey(topTwo[1].Key))
+                        {
+                            scoresUsingID[topTwo[1].Key] += 1;
+                        }
+                    }
+
+                Invoke((MethodInvoker)delegate
+                {
+                    GameInterval.Start();
+                    GameRound.Stop();
+                });
+                var startPositions = new PointF[]
+                {
+                new PointF(1, 3),
+                new PointF(10, 9),
+                new PointF(10, 3),
+                new PointF(1, 9)
+                };
+
+                List<byte> data = new List<byte>();
+                data.Add((byte)Data.WorldStateSyncGame);
+                lock (stateLock)
+                {
+                    state.setUpForGameMap();
+                    data.Add((byte)state.getInteractableCount());
+                    data.AddRange(state.getWorldState());
+                }
+                
+                TcpClient[] clientsinqueue;
+                int count = 0;
+                Dictionary<TcpClient, string> aeskeys;
+                lock (clientsLock)
+                {
+                    aeskeys = new Dictionary<TcpClient, string>(AESkeysUsingClients);
+                    clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                    for (int i = 0; i < IDsInGameOrQueue.Count && i < startPositions.Length; i++)
+                    {
+                        playersUsingID[IDsInGameOrQueue[i]].position = startPositions[i];
+                    }
+                    count = IDsInGameOrQueue.Count;
+                }
+                byte[] interval = new byte[1];
+                interval[0] = (byte)Data.Interval;
+                List<byte> playerpos = new List<byte>();
+                playerpos.Add((byte)Data.Position);
+                for (int i = 0; i < count; i++)
+                {
+                    byte[] xpos = BitConverter.GetBytes(startPositions[i].X);
+                    byte[] ypos = BitConverter.GetBytes(startPositions[i].Y);
+                    if (!BitConverter.IsLittleEndian)
+                    {
+                        Array.Reverse(xpos);
+                        Array.Reverse(ypos);
+                    }
+                    playerpos.AddRange(xpos);
+                    playerpos.AddRange(ypos);
+                    await StreamHelp.WriteEncrypted(clientsinqueue[i].GetStream(), playerpos.ToArray(), aeskeys[clientsinqueue[i]]);
+                    playerpos.Clear();
+                    playerpos.Add((byte)Data.Position);
+                }
+
+                await StreamHelp.WriteEncryptedToAll(clientsinqueue, interval, aeskeys);
+                await StreamHelp.WriteEncryptedToAll(clientsinqueue, data.ToArray(), aeskeys);
+                
+            }
+            else
+            {
+                Invoke((MethodInvoker)delegate
+                {
+                    GameInterval.Stop();
+                    GameRound.Stop();
+                });
+
+                List<byte> data = new List<byte>();
+                data.Add((byte)Data.WorldStateSyncGame);
+                lock (stateLock)
+                {
+                    state.setUpForGameMap();
+                    data.Add((byte)defaultstate.getInteractableCount());
+                    data.AddRange(defaultstate.getWorldState());
+                }
+
+                TcpClient[] clientsinqueue;
+                int count = 0;
+                Dictionary<TcpClient, string> aeskeys;
+                lock (clientsLock)
+                {
+                    aeskeys = new Dictionary<TcpClient, string>(AESkeysUsingClients);
+                    clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                }
+                byte[] stop = new byte[1];
+                stop[0] = (byte)Data.GameStop;
+
+                lock (clientsLock)
+                {
+                    IDsInGameOrQueue.Clear();
+                    scoresUsingID.Clear();
+                }
+
+                inGame = false;
+                round = 0;
+                await StreamHelp.WriteEncryptedToAll(clientsinqueue, stop, aeskeys);
+                await StreamHelp.WriteEncryptedToAll(clientsinqueue, data.ToArray(), aeskeys);
+            }
+            
         }
     }
 }

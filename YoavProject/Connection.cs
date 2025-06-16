@@ -105,20 +105,18 @@ namespace YoavProject
             blockOthers.Start();
         }
 
-        public static void sendToServer(byte[] message)
+        public static void sendToServer(byte[] message, UdpClient client)
         {
             if (serverAddress == null) {
                 MessageBox.Show("Failed to send: " + message + ", serverAddress doesnt exist!");
                 return;
             }
 
-            UdpClient sender = new UdpClient();
-
             IPEndPoint serverEndpoint = new IPEndPoint(serverAddress, regularCommunicationToServer);
 
-            sender.Send(message, message.Length, serverEndpoint);
-            sender.Client.ReceiveTimeout = 500;
-            sender.Close();
+            client.Send(message, message.Length, serverEndpoint);
+            client.Client.ReceiveTimeout = 500;
+            //sender.Close();
 
         }
 
