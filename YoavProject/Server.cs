@@ -45,7 +45,7 @@ namespace YoavProject
 
         private bool inGame;
         private bool startingGame;
-        private HashSet<int> IDsInGameOrQueue; 
+        private List<int> IDsInGameOrQueue; 
 
         private JsonHandler JsonHandler;
         public Server()
@@ -64,20 +64,22 @@ namespace YoavProject
             (RSAprivate, RSApublic) = Encryption.generateRSAkeypair();
             Console.WriteLine(RSApublic);
             JsonHandler = new JsonHandler();
-            IDsInGameOrQueue = new HashSet<int>();
+            IDsInGameOrQueue = new List<int>();
             inGame = false;
             startingGame = false;
-            state = new WorldState();
-            state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.lobby));
-
-            for (int i = 1; i < 8; i++)
+            lock (stateLock)
             {
-                Workstation a = new Workstation(new PointF(board.cols - i, board.rows - 1));
-                if (i % 3 == 0)
-                    a.type = Workstation.stationType.pasta;
-                //a.onInteract += printInteract;
-                state.addWorldInteractable(i, a);
+                state = new WorldState();
+                state.addWorldInteractable(0, new Table(new PointF(1, 5), var: Table.Variation.lobby));
+                for (int i = 1; i < 8; i++)
+                {
+                    Workstation a = new Workstation(new PointF(board.cols - i, board.rows - 1));
+                    if (i % 3 == 0)
+                        a.type = Workstation.stationType.pasta;
+                    //a.onInteract += printInteract;
+                    state.addWorldInteractable(i, a);
 
+                }
             }
 
             UDP.denyOthers();
@@ -162,7 +164,7 @@ namespace YoavProject
                     playersUsingID.Add(clientId, new Player());
                     //copy playersusingid to currplayers
                 }
-                lock (stateLock)
+                lock (stateLock) //here incase i wanna copy for another place
                 {
                     Console.WriteLine("Adding world data...");
                     stateSyncList.Add((byte)state.getInteractableCount());
@@ -212,7 +214,7 @@ namespace YoavProject
             async Task process_data(UdpReceiveResult res)
             {
                 byte[] data = res.Buffer;
-                if (data.Length != 10)
+                if (data.Length < 10)
                 {
                     Console.WriteLine("Invalid Packet Size");
                     return;
@@ -234,37 +236,54 @@ namespace YoavProject
                 PointF point = new PointF(x, y);
 
                 //Console.WriteLine($"Received Type {messageType} | x: {x}, y: {y} from id: {clientId}");
-                Dictionary<int, IPEndPoint> snapshot;
-                lock (clientsLock)
+                //Dictionary<int, IPEndPoint> snapshot;
+                if (!GameInterval.Enabled || (GameInterval.Enabled && !IDsInGameOrQueue.Contains(clientId)))
                 {
-                    udpEndpointsUsingID[clientId] = res.RemoteEndPoint;
-                    if (playersUsingID.TryGetValue(clientId, out Player player))
+                    lock (clientsLock)
                     {
-                        player.position = point;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Player with ID {clientId} not found. ");
-                    }
-                    snapshot = new Dictionary<int, IPEndPoint>(udpEndpointsUsingID);
-                }
+                        if (udpEndpointsUsingID.TryGetValue(clientId, out IPEndPoint existingEndpoint))
+                        {
+                            if (!existingEndpoint.Equals(res.RemoteEndPoint))
+                            {
+                                Console.WriteLine($"Warning: Mismatched endpoint for client {clientId}. Expected {existingEndpoint}, but got {res.RemoteEndPoint}.");
+                            }
+                        }
+                        else
+                        {
+                            // first time seeing this clientId, add the endpoint
+                            udpEndpointsUsingID[clientId] = res.RemoteEndPoint;
+                            Console.WriteLine($"Registered endpoint for client {clientId}: {res.RemoteEndPoint}");
+                        }
 
-                foreach (var pair in snapshot) //todo fix??
-                {
-                    int otherId = pair.Key;
-                    IPEndPoint ipEndPoint = new IPEndPoint(pair.Value.Address, UDP.regularCommunicationToClients);
-                    if (otherId == clientId) continue;
-
-                    try
-                    {
-                        //Console.WriteLine("Sending?");
-                        await receiver.SendAsync(data, data.Length, ipEndPoint);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"Failed to send to client {otherId}: {e.Message}");
+                        // update player position if found
+                        if (playersUsingID.TryGetValue(clientId, out Player player))
+                        {
+                            player.position = point;
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Player with ID {clientId} not found.");
+                        }
                     }
                 }
+                
+
+                //foreach (var pair in snapshot) //todo fix??
+                //{
+                //    int otherId = pair.Key;
+                //    IPEndPoint ipEndPoint = new IPEndPoint(pair.Value.Address, UDP.regularCommunicationToClients);
+                //    if (otherId == clientId) continue;
+
+                //    try
+                //    {
+                //        //Console.WriteLine("Sending?");
+                //        await receiver.SendAsync(data, data.Length, ipEndPoint);
+                //    }
+                //    catch (Exception e)
+                //    {
+                //        Console.WriteLine($"Failed to send to client {otherId}: {e.Message}");
+                //    }
+                //}
 
             }
 
@@ -554,9 +573,9 @@ namespace YoavProject
                     allClients.Remove(client);
                     JsonHandler.disconnectUser(usernameUsingID[IDUsingClients[client]]);
                     currentlyOnline--;
-                    if (IDsInGameOrQueue.TryGetValue(IDUsingClients[client], out int id))
+                    if (IDsInGameOrQueue.Contains(IDUsingClients[client]))
                     {
-                        IDsInGameOrQueue.Remove(id);
+                        IDsInGameOrQueue.Remove(IDUsingClients[client]);
                         nowInQueue = IDsInGameOrQueue.Count;
                         checkIfGameCanStart(nowInQueue);
                     }
@@ -615,13 +634,49 @@ namespace YoavProject
         private async void GameCountdown_Tick(object sender, EventArgs e)
         {
             Console.WriteLine("sending game start");
+            TcpClient[] clients;
+            Dictionary<TcpClient, string> aeskeys;
+            lock (clientsLock)
+            {
+                clients = IDUsingClients.Keys.ToArray();
+                aeskeys = new Dictionary<TcpClient, string>(AESkeysUsingClients);
+            }
+            Invoke((MethodInvoker)delegate
+            {
+                GameCountdown.Stop();
+            });
             startingGame = false;
             inGame = true;
             byte[] message = new byte[1];
             message[0] = (byte)Data.GameStart;
-            await StreamHelp.WriteEncryptedToAll(IDUsingClients.Keys.ToArray(), message, AESkeysUsingClients);
-            state.setUpForGameMap();
-            broadcastGameState();
+            await StreamHelp.WriteEncryptedToAll(clients, message, aeskeys);
+            List<byte> data = new List<byte>();
+            data.Add((byte)Data.WorldStateSyncGame);
+            lock (stateLock)
+            {
+                state.setUpForGameMap();
+                data.Add((byte)state.getInteractableCount());
+                data.AddRange(state.getWorldState());
+            }
+            var startPositions = new PointF[]
+            {
+                new PointF(1, 2),
+                new PointF(10, 9),
+                new PointF(10, 2),
+                new PointF(1, 9)
+            };
+            TcpClient[] clientsinqueue;
+            lock (clientsLock)
+            {
+                clientsinqueue = IDUsingClients.Where(kvp => IDsInGameOrQueue.Contains(kvp.Value)).Select(kvp => kvp.Key).ToArray();
+                for (int i = 0; i < IDsInGameOrQueue.Count && i < startPositions.Length; i++)
+                {
+                    playersUsingID[IDsInGameOrQueue[i]].position = startPositions[i];
+                }
+            }
+            
+            await StreamHelp.WriteEncryptedToAll(clientsinqueue, data.ToArray(), aeskeys);
+
         }
     }
 }

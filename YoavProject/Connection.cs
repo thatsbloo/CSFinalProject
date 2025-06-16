@@ -13,7 +13,7 @@ namespace YoavProject
     enum Messages { ServerExists, DenyServerReq, ConnectingReq}
 
     enum Registration: byte { Register = 1, Login = 9, RegisterSuccess = 3, LoginSuccess = 4, ErrorTaken = 5, ErrorWrong = 6, ErrorInvalid = 7, ErrorLoggedIn = 8 }
-    public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, WorldStateSync = 5, ObjInteract = 6, InteractionStateSync = 7, ObjInteractSuccess = 8, EnterQueue = 9, GameStart = 10, CountdownStart = 11, CountdownStop = 12, WorldStateSyncGame = 13, GameStop = 14 } //objinteract
+    public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, WorldStateSync = 5, ObjInteract = 6, InteractionStateSync = 7, ObjInteractSuccess = 8, EnterQueue = 9, GameStart = 10, CountdownStart = 11, CountdownStop = 12, WorldStateSyncGame = 13, GameStop = 14, Interval = 15 } //objinteract
     enum InteractionTypes: byte { pickupPlate = 1, putdownPlate = 2, enterGame = 3, leaveGame = 4 }
 
     
