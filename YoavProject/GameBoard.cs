@@ -22,7 +22,7 @@ namespace YoavProject
         public WorldState state;
         //private List<Costumer> costumers;
 
-        public Dictionary<int, Player> onlinePlayers;
+        public static Dictionary<int, Player> onlinePlayers;
 
         private GameObject topWall;
 
@@ -46,7 +46,7 @@ namespace YoavProject
             cols = 12; //needs to be odd number, or like, recommended because door. (starts at 0 (from 0 to 10))
             wallHeight = 2;
 
-            player = new Player();
+            player = new Player("");
             player.position = new Point(6,6);
             Console.WriteLine(player.getBorders());
 
@@ -65,10 +65,10 @@ namespace YoavProject
             tileSize = Math.Min(this.Width / cols, this.Height / rows);
         }
 
-        public bool printInteract()
+        public void setSelf(string username, int clientId)
         {
-            Console.WriteLine("I hath been interacted with");
-            return true;
+            player.username = username;
+            player.id = clientId;
         }
         public async void Update()
         {

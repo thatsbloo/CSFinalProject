@@ -7,13 +7,14 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace YoavProject
 {
     enum Messages { ServerExists, DenyServerReq, ConnectingReq}
 
     enum Registration: byte { Register = 1, Login = 9, RegisterSuccess = 3, LoginSuccess = 4, ErrorTaken = 5, ErrorWrong = 6, ErrorInvalid = 7, ErrorLoggedIn = 8 }
-    public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, WorldStateSync = 5, ObjInteract = 6, InteractionStateSync = 7, ObjInteractSuccess = 8, EnterQueue = 9, GameStart = 10, CountdownStart = 11, CountdownStop = 12, WorldStateSyncGame = 13, GameStop = 14, Interval = 15 } //objinteract
+    public enum Data : byte { Position = 1, CompleteStateSync = 2, PositionStateSync = 3, NewPlayer = 4, WorldStateSync = 5, ObjInteract = 6, InteractionStateSync = 7, ObjInteractSuccess = 8, EnterQueue = 9, GameStart = 10, CountdownStart = 11, CountdownStop = 12, WorldStateSyncGame = 13, GameStop = 14, Interval = 15, Score = 16 } //objinteract
     enum InteractionTypes: byte { pickupPlate = 1, putdownPlate = 2, enterGame = 3, leaveGame = 4 }
 
     
@@ -124,6 +125,7 @@ namespace YoavProject
         {
            return createByteMessage(type, Game.clientId, f1, f2);
         }
+        
 
         public static byte[] createByteMessage(Data type, int id, float f1, float f2)
         {
@@ -141,6 +143,30 @@ namespace YoavProject
             }
 
             return bytes;
+        }
+        public static byte[] createByteMessage(int id, float f1, float f2, string username)
+        {
+            List<byte> bytes = new List<byte>();
+            bytes.Add((byte)id);
+
+            byte[] float1 = BitConverter.GetBytes(f1);
+            byte[] float2 = BitConverter.GetBytes(f2);
+
+            byte[] usernamebytes = Encoding.UTF8.GetBytes(username);
+            byte[] usernamebyteslength = BitConverter.GetBytes(usernamebytes.Length);
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(float1);
+                Array.Reverse(float2);
+                Array.Reverse(usernamebyteslength);
+            }
+
+            bytes.AddRange(float1);
+            bytes.AddRange(float2);
+            bytes.AddRange(usernamebyteslength);
+            bytes.AddRange(usernamebytes);
+
+            return bytes.ToArray();
         }
 
         public static byte[] createByteMessage(int id, float f1, float f2)

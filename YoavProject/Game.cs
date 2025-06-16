@@ -37,6 +37,9 @@ namespace YoavProject
         public static volatile bool isGame = false;
         public static HashSet<int> IdInGameOrQueue = new HashSet<int>();
         public static volatile bool canMove = true;
+        public static Dictionary<int, int> ScoresUsingID = new Dictionary<int, int>();
+
+        private string username = "";
 
         public static UdpClient UDPclient;
         public Game()
@@ -111,11 +114,13 @@ namespace YoavProject
 
         private async Task joinTheGameWorld()
         {
+            
             Console.WriteLine("starting join the gameworld?");
             NetworkStream stream = tcpClient.GetStream();
             // read byte for client id
             byte[] decryptedID = await StreamHelp.ReadEncrypted(stream, AESkey);
             clientId = (int)decryptedID[0];
+            board.setSelf(this.username, clientId);
             Console.WriteLine("my id: " + clientId);
 
             byte[] buffer = await StreamHelp.ReadEncrypted(stream, AESkey);
@@ -144,13 +149,13 @@ namespace YoavProject
                     float x = BitConverter.ToSingle(buffer, offset + 4);
                     float y = BitConverter.ToSingle(buffer, offset + 8);
 
-                    Player p = new Player();
+                    Player p = new Player(this.username, clientId);
                     PointF pos = new PointF(x, y);
                     p.position = pos;
 
                     lock (playersLock)
                     {
-                        board.onlinePlayers.Add(id, p);
+                        GameBoard.onlinePlayers.Add(id, p);
                         online_players.Add(p);
                     }
                     Console.WriteLine("Finished Player sync");
@@ -231,6 +236,7 @@ namespace YoavProject
 
             
             string username = login.getUsername();
+            this.username = username;
             string pass = login.getPassword();
 
             byte[] usernameLengthBytes = BitConverter.GetBytes(username.Length);
@@ -325,7 +331,7 @@ namespace YoavProject
                     float playery = BitConverter.ToSingle(data, 7+offset);
                     PointF playerposition = new PointF(playerx, playery);
 
-                    if (board.onlinePlayers.TryGetValue(data[2 + offset], out Player player))
+                    if (GameBoard.onlinePlayers.TryGetValue(data[2 + offset], out Player player))
                     {
                         player.position = playerposition;
                     }
@@ -367,18 +373,21 @@ namespace YoavProject
                             {
                                 Array.Reverse(databytebytes, 2, 4);
                                 Array.Reverse(databytebytes, 6, 4);
+                                Array.Reverse(databytebytes, 10, 4);
                             }
                             float posX = BitConverter.ToSingle(databytebytes, 2);
                             float posY = BitConverter.ToSingle(databytebytes, 6);
 
+                            int usernamelength = BitConverter.ToInt32(databytebytes, 10);
+                            string newPlayerUsername = Encoding.UTF8.GetString(databytebytes, 14, usernamelength);
                             Console.WriteLine($"New player joined! ID: {playerId}");
 
-                            Player p = new Player();
+                            Player p = new Player(newPlayerUsername, playerId);
                             p.position = new PointF(posX, posY);
                             
                             lock (playersLock)
                             {
-                                board.onlinePlayers.Add(playerId, p);
+                                GameBoard.onlinePlayers.Add(playerId, p);
                                 online_players.Add(p);
                             }
                             break;
@@ -405,6 +414,7 @@ namespace YoavProject
                             Console.WriteLine("Emterqueue");
                             if (databytebytes[1] == (byte)clientId)
                                 isQueue = !isQueue;
+                            IdInGameOrQueue.Add(databytebytes[1]);
                             Console.WriteLine(databytebytes[1] + " " + isQueue);
                             break;
                         case Data.CountdownStart:
@@ -433,6 +443,10 @@ namespace YoavProject
                                     GameCountdown.Stop();
                                     board.countdownNum = 6;
                                 });
+                                foreach (int id in IdInGameOrQueue)
+                                {
+                                    ScoresUsingID[id] = 0;
+                                }
                                 isQueue = false;
                                 isGame = true;
                             }
@@ -456,6 +470,20 @@ namespace YoavProject
                                 Array.Reverse(databytebytes, 5, 4);
                             }
                             board.player.position = new PointF(BitConverter.ToSingle(databytebytes, 1), BitConverter.ToSingle(databytebytes, 5));
+                            break;
+                        case Data.Score:
+                            int scorecount = (int)databytebytes[1];
+                            for (int i = 0; i < scorecount; i++)
+                            {
+                                int id = (int)databytebytes[2+i];
+                                int score = (int)databytebytes[3+i];
+                                ScoresUsingID[id] = score;
+                            }
+                            break;
+                        case Data.GameStop:
+                            ScoresUsingID.Clear();
+                            IdInGameOrQueue.Clear();
+                            isGame = false;
                             break;
                         default:
                             break;

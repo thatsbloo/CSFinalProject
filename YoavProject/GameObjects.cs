@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
+using static System.Net.Mime.MediaTypeNames;
+using System.Windows.Forms;
 
 namespace YoavProject
 {
@@ -61,11 +64,15 @@ namespace YoavProject
     public class Player : GameObject
     {
         public int platesHeld;
-        public Player()
+        public string username;
+        public int id;
+        public Player(string username, int id = 0)
         {
             this.size = new SizeF(0.6f, 0.9f);
             this.hitboxSize = new SizeF(0.6f, 0.225f);
             this.platesHeld = 0;
+            this.username = username;
+            this.id = id;
 
         }
 
@@ -89,21 +96,33 @@ namespace YoavProject
 
         public override void draw(Graphics g)
         {
-            
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
+
             var screenPos = calcPositionOnScreen(this.position);
             var screenSize = calcSizeOnScreen();
 
             //Console.WriteLine(screenPos.X + " " + (screenPos.Y-screenSize.Height) + " " + screenSize.Width + " " + screenSize.Height);
 
-
-            g.FillRectangle(Brushes.Blue, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
+            RectangleF rect = new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height);
+            g.FillRectangle(Brushes.Blue, rect);
             //for (int i = 0; i < platesHeld; i++) 
             //{
             //    g.FillRectangle(Brushes.Red, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, screenSize.Width, screenSize.Height));
             //}
             g.DrawString(platesHeld + " plates", new Font("Arial", 16), Brushes.Black, new PointF(screenPos.X, screenPos.Y - screenSize.Height));
             //g.FillRectangle(Brushes.Pink, new RectangleF(screenPos.X, screenPos.Y - 2, 2, 2));
+            string str = username;
+            Console.WriteLine(Game.IdInGameOrQueue.Contains(this.id));
+            if (!Game.isGame && Game.IdInGameOrQueue.Contains(this.id))
+                str = str + " (queue)";
+            else if (Game.isGame && Game.IdInGameOrQueue.Contains(this.id))
+                str = str + " (score: " + Game.ScoresUsingID[id] + ")";
+            SizeF strsize = g.MeasureString(str, new Font("arial", 12));
 
+            float x = rect.X + (rect.Width - strsize.Width) / 2;
+            float y = rect.Y - strsize.Height - 4;
+
+            g.DrawString(str, new Font("arial", 12), Brushes.Black, x, y);
             // g.FillEllipse(Brushes.Green, new RectangleF(screenPos.X, screenPos.Y - screenSize.Height, 5, 5));
             base.draw(g);
         }

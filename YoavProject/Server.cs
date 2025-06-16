@@ -161,13 +161,13 @@ namespace YoavProject
                         Player p = pair.Value;
 
                         //full message includes the statesync
-                        byte[] playerData = UDP.createByteMessage(Data.Position, id, p.position.X, p.position.Y);
+                        byte[] playerData = UDP.createByteMessage(id, p.position.X, p.position.Y, usernameUsingID[id]);
                         stateSyncList.AddRange(playerData);
                     }
 
                     allClients.Add(client);
                     IDUsingClients.Add(client, clientId);
-                    playersUsingID.Add(clientId, new Player());
+                    playersUsingID.Add(clientId, new Player(username, clientId));
                     //copy playersusingid to currplayers
                 }
                 lock (stateLock) //here incase i wanna copy for another place
@@ -180,15 +180,17 @@ namespace YoavProject
                 byte byteId = (byte)clientId;
 
                 //send new player joined to existing
-                byte[] newPlayerBytes = new byte[1 + 1 + 4 + 4];
-                newPlayerBytes[0] = (byte)Data.NewPlayer;
-                Buffer.BlockCopy(UDP.createByteMessage(clientId, 6f, 6f), 0, newPlayerBytes, 1, 9);
+                List<byte> newPlayerBytes = new List<byte>();
+                //byte[] newPlayerBytes = new byte[1 + 1 + 4 + 4];
 
+                newPlayerBytes.Add((byte)Data.NewPlayer);
+                newPlayerBytes.AddRange(UDP.createByteMessage(clientId, 6f, 6f, username));
+               
                 
                 foreach (TcpClient existingClient in clientSnapshot.Keys)
                 {
                     Console.WriteLine("ahhhhh");
-                    await StreamHelp.WriteEncrypted(existingClient.GetStream(), newPlayerBytes, AESkeysUsingClients[client]);
+                    await StreamHelp.WriteEncrypted(existingClient.GetStream(), newPlayerBytes.ToArray(), AESkeysUsingClients[client]);
                 }
                 Console.WriteLine($"Client connected with ID {clientId}");
 
@@ -797,17 +799,18 @@ namespace YoavProject
             if (round <= 7)
             {
                 Dictionary<int, int> workstationPlatesID = new Dictionary<int, int>();
+                Dictionary<int, int> newScores;
                 lock (stateLock)
-                lock (clientsLock)
                 {
-                    
-                    for (int i = 1; i <= IDsInGameOrQueue.Count; i++)
+                    lock (clientsLock)
+                    {
+                        for (int i = 1; i <= IDsInGameOrQueue.Count; i++)
                         {
                             Workstation a = (Workstation)state.getInteractableObject(i);
                             workstationPlatesID.Add(i, a.getPlates());
                         }
 
-                    var topTwo = workstationPlatesID.OrderByDescending(pair => pair.Value).Take(2).ToArray();
+                        var topTwo = workstationPlatesID.OrderByDescending(pair => pair.Value).Take(2).ToArray();
                         if (topTwo.Length > 0 && scoresUsingID.ContainsKey(topTwo[0].Key))
                         {
                             scoresUsingID[topTwo[0].Key] += 2;
@@ -817,7 +820,9 @@ namespace YoavProject
                         {
                             scoresUsingID[topTwo[1].Key] += 1;
                         }
+                        newScores = new Dictionary<int, int>(scoresUsingID);
                     }
+                }
 
                 Invoke((MethodInvoker)delegate
                 {
@@ -854,6 +859,16 @@ namespace YoavProject
                     }
                     count = IDsInGameOrQueue.Count;
                 }
+                List<byte> scores = new List<byte>();
+                scores.Add((byte)Data.Score);
+                scores.Add((byte)newScores.Count);
+                foreach (var pair in newScores)
+                {
+                    scores.Add((byte)pair.Key);
+                    scores.Add((byte)pair.Value);
+                }
+                await StreamHelp.WriteEncryptedToAll(clientsinqueue, scores.ToArray(), aeskeys);
+
                 byte[] interval = new byte[1];
                 interval[0] = (byte)Data.Interval;
                 List<byte> playerpos = new List<byte>();
