@@ -99,5 +99,15 @@ namespace YoavProject.Properties {
                 return ((byte[])(obj));
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Byte[].
+        /// </summary>
+        internal static byte[] Map2 {
+            get {
+                object obj = ResourceManager.GetObject("Map2", resourceCulture);
+                return ((byte[])(obj));
+            }
+        }
     }
 }

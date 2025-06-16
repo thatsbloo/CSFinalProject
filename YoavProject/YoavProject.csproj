@@ -154,6 +154,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
     <None Include="Resources\Map1.json" />
+    <None Include="Resources\Map2.json" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

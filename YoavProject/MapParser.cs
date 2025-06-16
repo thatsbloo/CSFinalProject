@@ -43,13 +43,16 @@ namespace YoavProject
             var random = new Random();
 
             // Get random map
-            var mapNumber = random.Next(1, 2); // If you have 3 maps
+            var mapNumber = random.Next(1, 3); 
 
             string jsonString;
             switch (mapNumber)
             {
                 case 1:
                     jsonString = Encoding.UTF8.GetString(Properties.Resources.Map1).TrimStart('\uFEFF');
+                    break;
+                case 2:
+                    jsonString = Encoding.UTF8.GetString(Properties.Resources.Map2).TrimStart('\uFEFF');
                     break;
                 default:
                     jsonString = Encoding.UTF8.GetString(Properties.Resources.Map1).TrimStart('\uFEFF'); // Default fallback
